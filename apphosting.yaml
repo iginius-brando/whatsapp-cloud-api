@@ -1,0 +1,55 @@
+# Configurazione Firebase App Hosting.
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  # --- Firebase client config (PUBBLICA) --------------------------------
+  # Serve sia in fase di build che a runtime. Sostituisci i value con quelli
+  # del tuo progetto (Firebase Console > Impostazioni progetto > Le tue app).
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+
+  - variable: WHATSAPP_GRAPH_API_VERSION
+    value: v22.0
+    availability: [RUNTIME]
+
+  # --- Segreti WhatsApp (Cloud Secret Manager) --------------------------
+  # Crea i segreti con:
+  #   firebase apphosting:secrets:set whatsapp-access-token
+  #   firebase apphosting:secrets:set whatsapp-phone-number-id
+  #   firebase apphosting:secrets:set whatsapp-webhook-verify-token
+  #   firebase apphosting:secrets:set whatsapp-app-secret
+  - variable: WHATSAPP_ACCESS_TOKEN
+    secret: whatsapp-access-token
+    availability: [RUNTIME]
+  - variable: WHATSAPP_PHONE_NUMBER_ID
+    secret: whatsapp-phone-number-id
+    availability: [RUNTIME]
+  - variable: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+    secret: whatsapp-webhook-verify-token
+    availability: [RUNTIME]
+  - variable: WHATSAPP_APP_SECRET
+    secret: whatsapp-app-secret
+    availability: [RUNTIME]

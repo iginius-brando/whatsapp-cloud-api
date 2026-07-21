@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Le conversazioni e i messaggi sono leggibili/scrivibili solo dagli
+    // operatori autenticati (inbox condivisa: tutti vedono tutte le chat).
+    // Le scritture in ingresso dal webhook WhatsApp passano dall'Admin SDK,
+    // che bypassa queste regole.
+    match /conversations/{conversationId} {
+      allow read, write: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // Blocca tutto il resto per default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
