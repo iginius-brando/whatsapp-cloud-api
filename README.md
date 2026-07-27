@@ -149,6 +149,85 @@ firebase deploy --only firestore:rules,firestore:indexes
 
 ---
 
+## WhatsApp Flows
+
+Il progetto invia Flows **dinamici** (`data_api_version: "3.0"`): a ogni passo il
+client chiede al nostro server quale schermata mostrare, quindi serve un *Flow
+Endpoint* pubblico e cifrato.
+
+```
+Operatore ──► /api/whatsapp/send-flow ──► Cloud API ──► messaggio con bottone
+                                                              │
+Cliente apre il modulo                                        ▼
+   Meta ──POST cifrata──► /api/whatsapp/flow-endpoint ──► schermata successiva
+                                                              │
+Cliente conferma ──► nfm_reply ──► /api/whatsapp/webhook ──► Firestore
+```
+
+- `src/lib/flows/crypto.ts` — decifra le richieste (RSA-OAEP + AES-GCM) e cifra
+  le risposte con l'IV invertito, come richiede la specifica.
+- `src/lib/flows/appointment.ts` — macchina a stati delle schermate. Le funzioni
+  `listDepartments` / `listLocations` / `listDates` / `listTimes` sono il punto in
+  cui collegare la disponibilità reale: oggi restituiscono dati di esempio.
+- `src/app/api/whatsapp/flow-endpoint/route.ts` — l'endpoint da configurare su Meta.
+- `src/app/api/whatsapp/send-flow/route.ts` — invio del messaggio che apre il Flow.
+
+### 1. Genera la coppia di chiavi
+
+Meta accetta solo chiavi private protette da passphrase.
+
+```bash
+openssl genrsa -des3 -out private.pem 2048     # chiede la passphrase
+openssl rsa -in private.pem -pubout -out public.pem
+```
+
+### 2. Configura i segreti
+
+```bash
+firebase apphosting:secrets:set whatsapp-flow-private-key            # contenuto di private.pem
+firebase apphosting:secrets:set whatsapp-flow-private-key-passphrase
+```
+
+In `apphosting.yaml` imposta `WHATSAPP_FLOW_ID` con l'ID del Flow e
+`WHATSAPP_FLOW_DRAFT_MODE: "true"` finché il Flow è in bozza (in bozza l'invio
+funziona solo verso i numeri di test dell'app). Poi fai il deploy: l'endpoint
+deve essere già online prima del passo successivo.
+
+### 3. Carica la chiave pubblica
+
+```bash
+curl -X POST "https://graph.facebook.com/v22.0/<PHONE_NUMBER_ID>/whatsapp_business_encryption" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  --data-urlencode "business_public_key=$(cat public.pem)"
+```
+
+In alternativa si può usare il passo *Firma chiave pubblica* nel pannello del Flow.
+
+### 4. Collega l'endpoint
+
+In WhatsApp Manager → Flows → il tuo Flow → *Endpoint*:
+
+- **URI endpoint**: `https://<il-tuo-dominio>/api/whatsapp/flow-endpoint`
+- Esegui il **Controllo integrità**: Meta invia un `ping` cifrato e si aspetta
+  `{"data":{"status":"active"}}`. Se fallisce con 421 la chiave pubblica caricata
+  non corrisponde alla privata configurata.
+
+Quando il controllo è verde, **pubblica** il Flow e togli `WHATSAPP_FLOW_DRAFT_MODE`.
+
+### 5. Ricezione delle risposte
+
+Il modulo compilato arriva al webhook come messaggio `interactive` di tipo
+`nfm_reply`: i campi stanno in `response_json` (una stringa JSON) e vengono
+salvati nel messaggio Firestore sotto `flowResponse`, insieme al `flowToken` che
+identifica la sessione. Le prenotazioni completate finiscono anche nella
+collection `flowBookings`.
+
+> **Nota:** il messaggio interattivo che apre un Flow è soggetto alla finestra di
+> 24 ore. Per riaprire una conversazione scaduta serve un template approvato con
+> bottone di tipo `flow`.
+
+---
+
 ## Nota sulla finestra di 24 ore
 
 Per policy di Meta puoi inviare **testo libero** solo entro **24 ore**

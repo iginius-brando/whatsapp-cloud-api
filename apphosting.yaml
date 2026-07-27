@@ -53,3 +53,22 @@ env:
   - variable: WHATSAPP_APP_SECRET
     secret: whatsapp-app-secret
     availability: [RUNTIME]
+
+  # --- WhatsApp Flows ---------------------------------------------------
+  # ID del Flow: non è un segreto, ma cambia tra bozza e versione pubblicata.
+  - variable: WHATSAPP_FLOW_ID
+    value: ""
+    availability: [RUNTIME]
+  # Metti "true" finché il Flow è in bozza (invio consentito ai soli numeri di test).
+  - variable: WHATSAPP_FLOW_DRAFT_MODE
+    value: "false"
+    availability: [RUNTIME]
+  # Chiave privata RSA del Flow Endpoint e relativa passphrase. Crea i segreti con:
+  #   firebase apphosting:secrets:set whatsapp-flow-private-key
+  #   firebase apphosting:secrets:set whatsapp-flow-private-key-passphrase
+  - variable: WHATSAPP_FLOW_PRIVATE_KEY
+    secret: whatsapp-flow-private-key
+    availability: [RUNTIME]
+  - variable: WHATSAPP_FLOW_PRIVATE_KEY_PASSPHRASE
+    secret: whatsapp-flow-private-key-passphrase
+    availability: [RUNTIME]

@@ -18,6 +18,8 @@ export type MessageType =
   | "sticker"
   | "location"
   | "contacts"
+  /** Messaggio interattivo: invio di un Flow o risposta a un Flow. */
+  | "interactive"
   | "unsupported";
 
 export interface ChatMessage {
@@ -34,6 +36,10 @@ export interface ChatMessage {
   /** Millisecondi epoch del momento in cui WhatsApp ha registrato il messaggio. */
   timestamp: number;
   createdAt?: Timestamp | null;
+  /** Token della sessione di Flow, sui messaggi che ne inviano o ricevono uno. */
+  flowToken?: string;
+  /** Dati compilati dal cliente, sulle risposte a un Flow (nfm_reply). */
+  flowResponse?: Record<string, unknown>;
 }
 
 export interface Conversation {

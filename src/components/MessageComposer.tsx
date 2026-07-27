@@ -13,6 +13,7 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
   const { user } = useAuth();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendingFlow, setSendingFlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function send() {
@@ -41,6 +42,34 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
       setError(err instanceof Error ? err.message : "Errore di invio");
     } finally {
       setSending(false);
+    }
+  }
+
+  /** Invia il messaggio interattivo che apre il Flow di prenotazione. */
+  async function sendFlow() {
+    if (sendingFlow || !user) return;
+
+    setSendingFlow(true);
+    setError(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/whatsapp/send-flow", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ to: waId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Invio del modulo non riuscito");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore di invio");
+    } finally {
+      setSendingFlow(false);
     }
   }
 
@@ -73,6 +102,18 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
         <p className="mb-1 px-1 text-xs text-red-600">{error}</p>
       )}
       <div className="flex items-end gap-2">
+        <button
+          type="button"
+          onClick={() => void sendFlow()}
+          disabled={sendingFlow}
+          title="Invia il modulo di prenotazione"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-black/5 hover:text-wa-teal disabled:opacity-50"
+          aria-label="Invia modulo di prenotazione"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM8 13h8v2H8v-2zm0 4h8v2H8v-2z" />
+          </svg>
+        </button>
         <textarea
           rows={1}
           value={text}
