@@ -102,11 +102,41 @@ async function handleInboundMessage(
 
   let text: string | undefined;
   let mediaCaption: string | undefined;
+  let flowToken: string | undefined;
+  let flowResponse: Record<string, unknown> | undefined;
 
   switch (message.type) {
     case "text":
       text = message.text?.body;
       break;
+    case "interactive": {
+      // Risposta a un Flow: i campi compilati arrivano in response_json,
+      // che è una stringa JSON, non un oggetto.
+      const interactive = message.interactive;
+      if (interactive?.type === "nfm_reply") {
+        const reply = interactive.nfm_reply;
+        try {
+          flowResponse = reply?.response_json
+            ? JSON.parse(reply.response_json)
+            : undefined;
+        } catch {
+          console.error("response_json del Flow non parsabile");
+        }
+        flowToken =
+          typeof flowResponse?.flow_token === "string"
+            ? flowResponse.flow_token
+            : undefined;
+        mediaCaption = reply?.body || "[modulo compilato]";
+      } else {
+        // Risposte a bottoni/liste: il titolo scelto è già un buon testo.
+        text =
+          interactive?.button_reply?.title ||
+          interactive?.list_reply?.title ||
+          undefined;
+        if (!text) mediaCaption = "[risposta interattiva]";
+      }
+      break;
+    }
     case "image":
       mediaCaption = message.image?.caption || "[immagine]";
       break;
@@ -137,6 +167,8 @@ async function handleInboundMessage(
     text,
     mediaCaption,
     timestamp,
+    flowToken,
+    flowResponse,
   });
 
   // Spunta blu lato cliente.
@@ -181,6 +213,13 @@ interface WhatsAppInboundMessage {
   image?: { caption?: string };
   video?: { caption?: string };
   document?: { caption?: string };
+  interactive?: {
+    type?: string;
+    /** Risposta a un Flow. */
+    nfm_reply?: { name?: string; body?: string; response_json?: string };
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string };
+  };
   [key: string]: unknown;
 }
 

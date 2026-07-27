@@ -21,10 +21,9 @@ export interface SendTextResult {
   messageId: string;
 }
 
-/** Invia un messaggio di testo libero tramite la Cloud API. */
-export async function sendTextMessage(
-  to: string,
-  body: string,
+/** POST su /{phone-number-id}/messages, con gestione uniforme degli errori. */
+async function postMessage(
+  payload: Record<string, unknown>,
 ): Promise<SendTextResult> {
   const phoneNumberId = requireEnv("WHATSAPP_PHONE_NUMBER_ID");
   const token = requireEnv("WHATSAPP_ACCESS_TOKEN");
@@ -38,9 +37,7 @@ export async function sendTextMessage(
     body: JSON.stringify({
       messaging_product: "whatsapp",
       recipient_type: "individual",
-      to,
-      type: "text",
-      text: { preview_url: true, body },
+      ...payload,
     }),
   });
 
@@ -57,6 +54,101 @@ export async function sendTextMessage(
   }
 
   return { messageId };
+}
+
+/** Invia un messaggio di testo libero tramite la Cloud API. */
+export async function sendTextMessage(
+  to: string,
+  body: string,
+): Promise<SendTextResult> {
+  return postMessage({
+    to,
+    type: "text",
+    text: { preview_url: true, body },
+  });
+}
+
+export interface SendFlowOptions {
+  /** ID del Flow pubblicato (o in bozza, se `draft` è true). */
+  flowId: string;
+  /** Testo del corpo del messaggio che accompagna il bottone. */
+  body: string;
+  /** Etichetta del bottone che apre il Flow. */
+  cta: string;
+  header?: string;
+  footer?: string;
+  /**
+   * Token opaco che ci ritorna in ogni richiesta all'endpoint e nella risposta
+   * finale: serve a collegare la sessione di Flow alla conversazione.
+   */
+  flowToken: string;
+  /**
+   * "data_exchange" (default) fa richiedere la prima schermata al nostro
+   * endpoint; "navigate" apre direttamente una schermata statica.
+   */
+  action?: "data_exchange" | "navigate";
+  /** Schermata iniziale e dati, solo per action = "navigate". */
+  screen?: string;
+  screenData?: Record<string, unknown>;
+  /** True per inviare un Flow ancora in bozza (solo verso numeri di test). */
+  draft?: boolean;
+}
+
+/**
+ * Invia un messaggio interattivo che apre un Flow.
+ * Utilizzabile solo entro la finestra di servizio di 24 ore; fuori da quella
+ * finestra serve un template approvato con bottone di tipo flow.
+ */
+export async function sendFlowMessage(
+  to: string,
+  options: SendFlowOptions,
+): Promise<SendTextResult> {
+  const {
+    flowId,
+    body,
+    cta,
+    header,
+    footer,
+    flowToken,
+    action = "data_exchange",
+    screen,
+    screenData,
+    draft = false,
+  } = options;
+
+  if (action === "navigate" && !screen) {
+    throw new Error("Con flow_action 'navigate' serve la schermata iniziale");
+  }
+
+  return postMessage({
+    to,
+    type: "interactive",
+    interactive: {
+      type: "flow",
+      ...(header ? { header: { type: "text", text: header } } : {}),
+      body: { text: body },
+      ...(footer ? { footer: { text: footer } } : {}),
+      action: {
+        name: "flow",
+        parameters: {
+          flow_message_version: "3",
+          flow_token: flowToken,
+          flow_id: flowId,
+          flow_cta: cta,
+          flow_action: action,
+          ...(draft ? { mode: "draft" } : {}),
+          ...(action === "navigate"
+            ? {
+                flow_action_payload: {
+                  screen,
+                  ...(screenData ? { data: screenData } : {}),
+                },
+              }
+            : {}),
+        },
+      },
+    },
+  });
 }
 
 /** Segna un messaggio in ingresso come letto (doppia spunta blu lato cliente). */
