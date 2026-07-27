@@ -13,22 +13,22 @@ env:
   # Serve sia in fase di build che a runtime. Sostituisci i value con quelli
   # del tuo progetto (Firebase Console > Impostazioni progetto > Le tue app).
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    value: REPLACE_ME
+    value: AIzaSyBIAEQntyCuqWpSgoWLKzNiS6uiofLusM8
     availability: [BUILD, RUNTIME]
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-    value: REPLACE_ME
+    value: whatsapp-cloud-9560a.firebaseapp.com
     availability: [BUILD, RUNTIME]
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    value: REPLACE_ME
+    value: whatsapp-cloud-9560a
     availability: [BUILD, RUNTIME]
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    value: REPLACE_ME
+    value: whatsapp-cloud-9560a.firebasestorage.app
     availability: [BUILD, RUNTIME]
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-    value: REPLACE_ME
+    value: "1083758399746"
     availability: [BUILD, RUNTIME]
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
-    value: REPLACE_ME
+    value: 1:1083758399746:web:8f7f49ff63fd0127a1b21b
     availability: [BUILD, RUNTIME]
 
   - variable: WHATSAPP_GRAPH_API_VERSION
