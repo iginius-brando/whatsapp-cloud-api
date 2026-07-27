@@ -188,10 +188,14 @@ firebase apphosting:secrets:set whatsapp-flow-private-key            # contenuto
 firebase apphosting:secrets:set whatsapp-flow-private-key-passphrase
 ```
 
-In `apphosting.yaml` imposta `WHATSAPP_FLOW_ID` con l'ID del Flow e
-`WHATSAPP_FLOW_DRAFT_MODE: "true"` finché il Flow è in bozza (in bozza l'invio
-funziona solo verso i numeri di test dell'app). Poi fai il deploy: l'endpoint
-deve essere già online prima del passo successivo.
+In `apphosting.yaml` togli il commento dal blocco `WHATSAPP_FLOW_ID` e inserisci
+l'ID del Flow. Attenzione: App Hosting rifiuta un `value` vuoto con l'errore
+`fah/invalid-apphosting-yaml`, quindi la variabile va lasciata commentata finché
+non si ha l'ID vero, non valorizzata con `""`.
+
+Imposta anche `WHATSAPP_FLOW_DRAFT_MODE: "true"` finché il Flow è in bozza (in
+bozza l'invio funziona solo verso i numeri di test dell'app). Poi fai il deploy:
+l'endpoint deve essere già online prima del passo successivo.
 
 ### 3. Carica la chiave pubblica
 

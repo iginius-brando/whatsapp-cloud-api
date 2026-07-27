@@ -56,9 +56,12 @@ env:
 
   # --- WhatsApp Flows ---------------------------------------------------
   # ID del Flow: non è un segreto, ma cambia tra bozza e versione pubblicata.
-  - variable: WHATSAPP_FLOW_ID
-    value: ""
-    availability: [RUNTIME]
+  # Togli il commento e inserisci l'ID; App Hosting rifiuta un `value` vuoto,
+  # quindi la variabile va lasciata assente finché non si ha l'ID vero.
+  # - variable: WHATSAPP_FLOW_ID
+  #   value: "1234567890123456"
+  #   availability: [RUNTIME]
+
   # Metti "true" finché il Flow è in bozza (invio consentito ai soli numeri di test).
   - variable: WHATSAPP_FLOW_DRAFT_MODE
     value: "false"
