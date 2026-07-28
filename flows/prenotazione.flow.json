@@ -4,11 +4,14 @@
     "routing_model": {
         "MENU": [
             "APPOINTMENTS",
-            "DATE"
+            "PERIOD"
         ],
         "APPOINTMENTS": [
-            "DATE",
+            "PERIOD",
             "SUMMARY"
+        ],
+        "PERIOD": [
+            "DATE"
         ],
         "DATE": [
             "TIME"
@@ -192,10 +195,10 @@
             }
         },
         {
-            "id": "DATE",
+            "id": "PERIOD",
             "title": "Vedi disponibilità",
             "data": {
-                "months": {
+                "periods": {
                     "type": "array",
                     "items": {
                         "type": "object",
@@ -205,28 +208,77 @@
                             },
                             "title": {
                                 "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
                             }
                         }
                     },
                     "__example__": [
                         {
-                            "id": "2026-07",
-                            "title": "Luglio 2026"
+                            "id": "soonest",
+                            "title": "Prime disponibilità",
+                            "description": "mer 29/07/2026 · gio 30/07/2026 · mer 05/08/2026"
                         },
                         {
                             "id": "2026-08",
-                            "title": "Agosto 2026"
+                            "title": "Agosto 2026",
+                            "description": "prime disponibilità: mar 25, mer 26, gio 27"
                         },
                         {
                             "id": "2026-09",
-                            "title": "Settembre 2026"
+                            "title": "Settembre 2026",
+                            "description": "prime disponibilità: mar 1, mer 2, gio 3"
                         }
                     ]
                 },
-                "selected_month": {
+                "intro": {
                     "type": "string",
-                    "__example__": "2026-07"
+                    "__example__": "Scegli quando vuoi venire."
                 },
+                "context": {
+                    "type": "string",
+                    "__example__": "{\"action\":\"single_self\"}"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextBody",
+                        "text": "${data.intro}"
+                    },
+                    {
+                        "type": "Form",
+                        "name": "period_form",
+                        "children": [
+                            {
+                                "type": "RadioButtonsGroup",
+                                "name": "period",
+                                "label": "Periodo",
+                                "data-source": "${data.periods}",
+                                "required": true
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Continua",
+                                "on-click-action": {
+                                    "name": "data_exchange",
+                                    "payload": {
+                                        "period": "${form.period}",
+                                        "context": "${data.context}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "id": "DATE",
+            "title": "Scegli la data",
+            "data": {
                 "dates": {
                     "type": "array",
                     "items": {
@@ -273,29 +325,13 @@
                 "type": "SingleColumnLayout",
                 "children": [
                     {
+                        "type": "TextBody",
+                        "text": "${data.intro}"
+                    },
+                    {
                         "type": "Form",
                         "name": "date_form",
                         "children": [
-                            {
-                                "type": "Dropdown",
-                                "name": "month",
-                                "label": "Mese",
-                                "data-source": "${data.months}",
-                                "init-value": "${data.selected_month}",
-                                "required": true,
-                                "on-select-action": {
-                                    "name": "data_exchange",
-                                    "payload": {
-                                        "trigger": "month_selected",
-                                        "month": "${form.month}",
-                                        "context": "${data.context}"
-                                    }
-                                }
-                            },
-                            {
-                                "type": "TextBody",
-                                "text": "${data.intro}"
-                            },
                             {
                                 "type": "RadioButtonsGroup",
                                 "name": "date",
@@ -311,7 +347,6 @@
                                 "on-click-action": {
                                     "name": "data_exchange",
                                     "payload": {
-                                        "month": "${form.month}",
                                         "date": "${form.date}",
                                         "context": "${data.context}"
                                     }
