@@ -8,10 +8,16 @@ import { saveFlowBooking } from "@/lib/firebase/firestore-admin";
  *
  * Ricalca il percorso già in uso dal cliente via liste WhatsApp:
  *
- *   MENU ──┬─ prenotazione ────────────► DATE ─► TIME ─► DETAILS ─► SUMMARY
- *          └─ gestione appuntamenti ──► APPOINTMENTS ─┬─ spostare ─► DATE ─► TIME ─► SUMMARY
- *                                                     ├─ disdire ──────────────────► SUMMARY
- *                                                     └─ vedere ───────────────────► SUMMARY
+ *   MENU ──┬─ prenotazione ──────────► PERIOD ─► DATE ─► TIME ─► DETAILS ─► SUMMARY
+ *          └─ gestione appuntamenti ─► APPOINTMENTS ─┬─ spostare ─► PERIOD ─► … ─► SUMMARY
+ *                                                    ├─ disdire ─────────────────► SUMMARY
+ *                                                    └─ vedere ──────────────────► SUMMARY
+ *
+ * La schermata PERIOD ricalca la sezione "PRIME DATE / ALTRE DATE" delle liste
+ * originali: la prima voce propone le disponibilità più vicine, le altre sono i
+ * mesi successivi. Esiste come schermata a sé perché nei Flows un Dropdown non
+ * può interrogare l'endpoint alla selezione (`on-select-action` accetta solo
+ * `update_data`), mentre il footer di una schermata sì.
  *
  * Il Flow non ha memoria tra una richiesta e l'altra: lo stato viaggia avanti e
  * indietro dentro il campo `context`, una stringa JSON che ogni schermata riceve
@@ -50,8 +56,8 @@ type ActionId =
 interface BookingContext {
   action?: ActionId;
   appointmentId?: string;
-  /** Mese in formato YYYY-MM. */
-  month?: string;
+  /** "soonest" per le prime disponibilità, oppure un mese in formato YYYY-MM. */
+  period?: string;
   /** Data in formato YYYY-MM-DD. */
   date?: string;
   /** Orario di inizio in formato HH:MM. */
@@ -81,6 +87,16 @@ const MONTH_LABEL = new Intl.DateTimeFormat("it-IT", {
   month: "long",
   year: "numeric",
 });
+
+/** Forma compatta usata negli elenchi dei mesi: "mar 25". */
+const SHORT_DATE_LABEL = new Intl.DateTimeFormat("it-IT", {
+  weekday: "short",
+  day: "numeric",
+});
+
+function formatShortDate(isoDate: string): string {
+  return SHORT_DATE_LABEL.format(new Date(`${isoDate}T12:00:00`));
+}
 
 function formatDate(isoDate: string): string {
   return DATE_LABEL.format(new Date(`${isoDate}T12:00:00`));
@@ -140,23 +156,42 @@ function slotsFor(isoDate: string): string[] {
   return ALL_SLOTS.filter((_, index) => (bits >>> index) & 1);
 }
 
-/** Mesi selezionabili: quello corrente più i tre successivi. */
-function listMonths(): ListItem[] {
-  const items: ListItem[] = [];
-  const cursor = new Date();
-  cursor.setDate(1);
+/** Quanti giorni in avanti guardare quando si cercano le prime disponibilità. */
+const SEARCH_HORIZON_DAYS = 120;
 
-  for (let i = 0; i < 4; i++) {
-    const month = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
-    items.push({ id: month, title: formatMonth(month) });
-    cursor.setMonth(cursor.getMonth() + 1);
+function isoDaysFromNow(offset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Descrizione di un giorno, con gli orari liberi. */
+function dateItem(isoDate: string, slots: string[]): ListItem {
+  return {
+    id: isoDate,
+    title: formatDate(isoDate),
+    description:
+      slots.length === 1
+        ? `unico orario rimasto: ${slots[0]}`
+        : `orari disponibili: ${slots.join(", ")}`,
+  };
+}
+
+/** Prime disponibilità a partire da oggi, senza vincolo di mese. */
+function listSoonestDates(limit = MAX_DATES): ListItem[] {
+  const items: ListItem[] = [];
+
+  for (let i = 0; i < SEARCH_HORIZON_DAYS && items.length < limit; i++) {
+    const isoDate = isoDaysFromNow(i);
+    const slots = slotsFor(isoDate);
+    if (slots.length > 0) items.push(dateItem(isoDate, slots));
   }
 
   return items;
 }
 
 /** Giorni con almeno uno slot libero nel mese indicato. */
-function listDates(month: string): ListItem[] {
+function listMonthDates(month: string): ListItem[] {
   const [year, monthIndex] = month.split("-").map(Number);
   const daysInMonth = new Date(year, monthIndex, 0).getDate();
   const items: ListItem[] = [];
@@ -164,15 +199,52 @@ function listDates(month: string): ListItem[] {
   for (let day = 1; day <= daysInMonth && items.length < MAX_DATES; day++) {
     const isoDate = `${month}-${String(day).padStart(2, "0")}`;
     const slots = slotsFor(isoDate);
-    if (slots.length === 0) continue;
+    if (slots.length > 0) items.push(dateItem(isoDate, slots));
+  }
+
+  return items;
+}
+
+/** Giorni disponibili nel periodo scelto. */
+function listDates(period: string): ListItem[] {
+  return period === "soonest" ? listSoonestDates() : listMonthDates(period);
+}
+
+/**
+ * Periodi selezionabili: le prime disponibilità più i mesi successivi, ognuno
+ * con l'anteprima dei primi giorni liberi. Ricalca "PRIME DATE / ALTRE DATE".
+ */
+function listPeriods(): ListItem[] {
+  const soonest = listSoonestDates(3);
+
+  const items: ListItem[] = [
+    {
+      id: "soonest",
+      title: "Prime disponibilità",
+      description:
+        soonest.length > 0
+          ? soonest.map((d) => d.title).join(" · ")
+          : "nessuna disponibilità a breve",
+    },
+  ];
+
+  // Mese corrente escluso: le sue date sono già tra le prime disponibilità.
+  const cursor = new Date();
+  cursor.setDate(1);
+
+  for (let i = 1; i <= 3; i++) {
+    cursor.setMonth(cursor.getMonth() + 1);
+    const month = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+    const dates = listMonthDates(month);
+    if (dates.length === 0) continue;
 
     items.push({
-      id: isoDate,
-      title: formatDate(isoDate),
-      description:
-        slots.length === 1
-          ? `unico orario rimasto: ${slots[0]}`
-          : `orari disponibili: ${slots.join(", ")}`,
+      id: month,
+      title: formatMonth(month),
+      description: `prime disponibilità: ${dates
+        .slice(0, 3)
+        .map((d) => formatShortDate(d.id))
+        .join(", ")}`,
     });
   }
 
@@ -335,23 +407,31 @@ function appointmentsScreen(
   };
 }
 
+function periodScreen(context: BookingContext): FlowResponse {
+  return {
+    screen: "PERIOD",
+    data: {
+      periods: listPeriods(),
+      intro: "Scegli quando vuoi venire.",
+      context: encodeContext(context),
+    },
+  };
+}
+
 function dateScreen(context: BookingContext): FlowResponse {
-  const months = listMonths();
-  const month = context.month || months[0].id;
-  const dates = listDates(month);
+  const period = context.period || "soonest";
+  const dates = listDates(period);
 
   return {
     screen: "DATE",
     data: {
-      months,
-      selected_month: month,
       dates,
       has_dates: dates.length > 0,
       intro:
         dates.length > 0
           ? "Scegli una data tra quelle disponibili."
-          : "Nessuna disponibilità in questo mese: prova con un altro mese.",
-      context: encodeContext({ ...context, month }),
+          : "Nessuna disponibilità in questo periodo: torna indietro e scegline un altro.",
+      context: encodeContext({ ...context, period }),
     },
   };
 }
@@ -476,7 +556,8 @@ export async function handleBookingFlow(
     // ricostruiamo quelle dinamiche partendo dal contesto ricevuto.
     const context = decodeContext(data);
     if (screen === "TIME") return dateScreen(context);
-    if (screen === "DATE" && isManagement(context.action)) {
+    if (screen === "DATE") return periodScreen(context);
+    if (screen === "PERIOD" && isManagement(context.action)) {
       return appointmentsScreen(waId, context);
     }
     return menuScreen(waId);
@@ -494,7 +575,7 @@ export async function handleBookingFlow(
       const next: BookingContext = { action: chosen };
       return isManagement(chosen)
         ? appointmentsScreen(waId, next)
-        : dateScreen(next);
+        : periodScreen(next);
     }
 
     case "APPOINTMENTS": {
@@ -503,21 +584,16 @@ export async function handleBookingFlow(
         appointmentId: str(data, "appointment"),
       };
 
-      if (next.action === "reschedule") return dateScreen(next);
+      if (next.action === "reschedule") return periodScreen(next);
       return summaryScreen(next, listAppointments(waId));
     }
 
-    case "DATE": {
-      // Il cambio di mese ricarica la stessa schermata con le nuove date.
-      if (str(data, "trigger") === "month_selected") {
-        return dateScreen({ ...context, month: str(data, "month") });
-      }
+    case "PERIOD": {
+      return dateScreen({ ...context, period: str(data, "period") });
+    }
 
-      return timeScreen({
-        ...context,
-        month: str(data, "month") || context.month,
-        date: str(data, "date"),
-      });
+    case "DATE": {
+      return timeScreen({ ...context, date: str(data, "date") });
     }
 
     case "TIME": {

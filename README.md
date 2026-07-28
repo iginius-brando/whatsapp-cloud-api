@@ -175,11 +175,17 @@ Cliente conferma ──► nfm_reply ──► /api/whatsapp/webhook ──► F
 ### Percorso del Flow
 
 ```
-MENU ──┬─ prenotazione ────────► DATE ─► TIME ─► DETAILS ─► SUMMARY
-       └─ gestione ─► APPOINTMENTS ─┬─ spostare ─► DATE ─► TIME ─► SUMMARY
-                                    ├─ disdire ──────────────────► SUMMARY
-                                    └─ vedere ───────────────────► SUMMARY
+MENU ──┬─ prenotazione ──────► PERIOD ─► DATE ─► TIME ─► DETAILS ─► SUMMARY
+       └─ gestione ─► APPOINTMENTS ─┬─ spostare ─► PERIOD ─► … ─► SUMMARY
+                                    ├─ disdire ─────────────────► SUMMARY
+                                    └─ vedere ──────────────────► SUMMARY
 ```
+
+La schermata PERIOD ("prime disponibilità" oppure un mese) esiste come passo a
+sé perché nei Flows un `Dropdown` non può interrogare l'endpoint alla selezione:
+il suo `on-select-action` accetta solo `update_data`, che aggiorna i dati lato
+client senza chiamare il server. Solo il footer di una schermata può fare
+`data_exchange`, quindi ogni passaggio che richiede dati nuovi è una schermata.
 
 Il Flow non ha memoria tra una richiesta e l'altra: lo stato viaggia dentro il
 campo `context`, una stringa JSON che ogni schermata riceve nei propri `data` e
@@ -194,8 +200,8 @@ In `booking.ts`, nella sezione *Sorgenti dati*:
 | Funzione | Restituisce |
 |---|---|
 | `slotsFor(isoDate)` | orari liberi di un giorno |
-| `listMonths()` | mesi selezionabili |
-| `listDates(month)` | giorni con almeno uno slot libero |
+| `listPeriods()` | prime disponibilità e mesi successivi |
+| `listDates(period)` | giorni con almeno uno slot libero nel periodo |
 | `listSlots(isoDate)` | slot di un giorno, già formattati |
 | `listAppointments(waId)` | appuntamenti futuri del cliente |
 
