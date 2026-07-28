@@ -1,0 +1,538 @@
+{
+    "version": "7.3",
+    "data_api_version": "3.0",
+    "routing_model": {
+        "MENU": [
+            "APPOINTMENTS",
+            "DATE"
+        ],
+        "APPOINTMENTS": [
+            "DATE",
+            "SUMMARY"
+        ],
+        "DATE": [
+            "TIME"
+        ],
+        "TIME": [
+            "DETAILS",
+            "SUMMARY"
+        ],
+        "DETAILS": [
+            "SUMMARY"
+        ],
+        "SUMMARY": []
+    },
+    "screens": [
+        {
+            "id": "MENU",
+            "title": "Scegli cosa fare",
+            "data": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "single_self",
+                            "title": "Singola per me",
+                            "description": "Prenota una visita solo per te stesso"
+                        },
+                        {
+                            "id": "single_other",
+                            "title": "Singola per altri",
+                            "description": "Prenota una visita per un'altra persona"
+                        },
+                        {
+                            "id": "double_same",
+                            "title": "Doppia stesso orario",
+                            "description": "Prenota per te e un'altra persona alla stessa ora"
+                        },
+                        {
+                            "id": "reschedule",
+                            "title": "Spostare",
+                            "description": "Sposta un tuo appuntamento ad altra data o orario"
+                        },
+                        {
+                            "id": "cancel",
+                            "title": "Disdire",
+                            "description": "Disdici un tuo appuntamento"
+                        },
+                        {
+                            "id": "view",
+                            "title": "Visualizzare",
+                            "description": "Vedi i tuoi appuntamenti futuri"
+                        }
+                    ]
+                },
+                "context": {
+                    "type": "string",
+                    "__example__": "{}"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "Form",
+                        "name": "menu_form",
+                        "children": [
+                            {
+                                "type": "RadioButtonsGroup",
+                                "name": "action",
+                                "label": "Cosa vuoi fare?",
+                                "data-source": "${data.actions}",
+                                "required": true
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Continua",
+                                "on-click-action": {
+                                    "name": "data_exchange",
+                                    "payload": {
+                                        "action": "${form.action}",
+                                        "context": "${data.context}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "id": "APPOINTMENTS",
+            "title": "I tuoi appuntamenti",
+            "data": {
+                "appointments": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "2026-08-03T12:00",
+                            "title": "lun 03/08/2026 alle 12:00",
+                            "description": "Visita singola"
+                        },
+                        {
+                            "id": "2026-08-11T17:15",
+                            "title": "mar 11/08/2026 alle 17:15",
+                            "description": "Visita doppia"
+                        }
+                    ]
+                },
+                "intro": {
+                    "type": "string",
+                    "__example__": "Scegli l'appuntamento da spostare."
+                },
+                "footer_label": {
+                    "type": "string",
+                    "__example__": "Scegli nuova data"
+                },
+                "context": {
+                    "type": "string",
+                    "__example__": "{\"action\":\"reschedule\"}"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextBody",
+                        "text": "${data.intro}"
+                    },
+                    {
+                        "type": "Form",
+                        "name": "appointments_form",
+                        "children": [
+                            {
+                                "type": "RadioButtonsGroup",
+                                "name": "appointment",
+                                "label": "Appuntamenti futuri",
+                                "data-source": "${data.appointments}",
+                                "required": true
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "${data.footer_label}",
+                                "on-click-action": {
+                                    "name": "data_exchange",
+                                    "payload": {
+                                        "appointment": "${form.appointment}",
+                                        "context": "${data.context}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "id": "DATE",
+            "title": "Vedi disponibilità",
+            "data": {
+                "months": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "2026-07",
+                            "title": "Luglio 2026"
+                        },
+                        {
+                            "id": "2026-08",
+                            "title": "Agosto 2026"
+                        },
+                        {
+                            "id": "2026-09",
+                            "title": "Settembre 2026"
+                        }
+                    ]
+                },
+                "selected_month": {
+                    "type": "string",
+                    "__example__": "2026-07"
+                },
+                "dates": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "2026-07-29",
+                            "title": "mer 29/07/2026",
+                            "description": "orari disponibili: 12:00, 17:15"
+                        },
+                        {
+                            "id": "2026-07-30",
+                            "title": "gio 30/07/2026",
+                            "description": "unico orario rimasto: 15:00"
+                        }
+                    ]
+                },
+                "has_dates": {
+                    "type": "boolean",
+                    "__example__": true
+                },
+                "intro": {
+                    "type": "string",
+                    "__example__": "Scegli una data tra quelle disponibili."
+                },
+                "context": {
+                    "type": "string",
+                    "__example__": "{\"action\":\"single_self\"}"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "Form",
+                        "name": "date_form",
+                        "children": [
+                            {
+                                "type": "Dropdown",
+                                "name": "month",
+                                "label": "Mese",
+                                "data-source": "${data.months}",
+                                "init-value": "${data.selected_month}",
+                                "required": true,
+                                "on-select-action": {
+                                    "name": "data_exchange",
+                                    "payload": {
+                                        "trigger": "month_selected",
+                                        "month": "${form.month}",
+                                        "context": "${data.context}"
+                                    }
+                                }
+                            },
+                            {
+                                "type": "TextBody",
+                                "text": "${data.intro}"
+                            },
+                            {
+                                "type": "RadioButtonsGroup",
+                                "name": "date",
+                                "label": "Date disponibili",
+                                "data-source": "${data.dates}",
+                                "visible": "${data.has_dates}",
+                                "required": "${data.has_dates}"
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Continua",
+                                "enabled": "${data.has_dates}",
+                                "on-click-action": {
+                                    "name": "data_exchange",
+                                    "payload": {
+                                        "month": "${form.month}",
+                                        "date": "${form.date}",
+                                        "context": "${data.context}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "id": "TIME",
+            "title": "Scegli orario",
+            "data": {
+                "times": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "description": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "12:00",
+                            "title": "alle 12:00",
+                            "description": "dalle 12:00 alle 12:45"
+                        },
+                        {
+                            "id": "17:15",
+                            "title": "alle 17:15",
+                            "description": "dalle 17:15 alle 18:00"
+                        }
+                    ]
+                },
+                "intro": {
+                    "type": "string",
+                    "__example__": "Orari disponibili per mer 29/07/2026."
+                },
+                "context": {
+                    "type": "string",
+                    "__example__": "{\"action\":\"single_self\",\"date\":\"2026-07-29\"}"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextBody",
+                        "text": "${data.intro}"
+                    },
+                    {
+                        "type": "Form",
+                        "name": "time_form",
+                        "children": [
+                            {
+                                "type": "RadioButtonsGroup",
+                                "name": "time",
+                                "label": "Orari disponibili",
+                                "data-source": "${data.times}",
+                                "required": true
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Continua",
+                                "on-click-action": {
+                                    "name": "data_exchange",
+                                    "payload": {
+                                        "time": "${form.time}",
+                                        "context": "${data.context}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "id": "DETAILS",
+            "title": "I tuoi dati",
+            "data": {
+                "needs_guest": {
+                    "type": "boolean",
+                    "__example__": false
+                },
+                "guest_label": {
+                    "type": "string",
+                    "__example__": "Nome della seconda persona"
+                },
+                "context": {
+                    "type": "string",
+                    "__example__": "{\"action\":\"single_self\",\"date\":\"2026-07-29\",\"time\":\"12:00\"}"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "Form",
+                        "name": "details_form",
+                        "children": [
+                            {
+                                "type": "TextInput",
+                                "name": "name",
+                                "label": "Nome e cognome",
+                                "input-type": "text",
+                                "required": true
+                            },
+                            {
+                                "type": "TextInput",
+                                "name": "phone",
+                                "label": "Telefono",
+                                "input-type": "phone",
+                                "required": true
+                            },
+                            {
+                                "type": "TextInput",
+                                "name": "guest_name",
+                                "label": "${data.guest_label}",
+                                "input-type": "text",
+                                "visible": "${data.needs_guest}",
+                                "required": "${data.needs_guest}"
+                            },
+                            {
+                                "type": "TextArea",
+                                "name": "notes",
+                                "label": "Note",
+                                "helper-text": "Facoltativo",
+                                "required": false
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Continua",
+                                "on-click-action": {
+                                    "name": "data_exchange",
+                                    "payload": {
+                                        "name": "${form.name}",
+                                        "phone": "${form.phone}",
+                                        "guest_name": "${form.guest_name}",
+                                        "notes": "${form.notes}",
+                                        "context": "${data.context}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "id": "SUMMARY",
+            "title": "Riepilogo",
+            "terminal": true,
+            "data": {
+                "title": {
+                    "type": "string",
+                    "__example__": "Confermi la prenotazione?"
+                },
+                "body": {
+                    "type": "string",
+                    "__example__": "Visita singola\nmer 29/07/2026 alle 12:00\nDurata: dalle 12:00 alle 12:45\n\nNome: Mario Rossi\nTelefono: 3331234567"
+                },
+                "footer_label": {
+                    "type": "string",
+                    "__example__": "Conferma prenotazione"
+                },
+                "show_terms": {
+                    "type": "boolean",
+                    "__example__": true
+                },
+                "context": {
+                    "type": "string",
+                    "__example__": "{\"action\":\"single_self\"}"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextHeading",
+                        "text": "${data.title}"
+                    },
+                    {
+                        "type": "TextBody",
+                        "text": "${data.body}"
+                    },
+                    {
+                        "type": "Form",
+                        "name": "summary_form",
+                        "children": [
+                            {
+                                "type": "OptIn",
+                                "name": "terms",
+                                "label": "Accetto i termini del servizio",
+                                "visible": "${data.show_terms}",
+                                "required": "${data.show_terms}"
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "${data.footer_label}",
+                                "on-click-action": {
+                                    "name": "data_exchange",
+                                    "payload": {
+                                        "terms": "${form.terms}",
+                                        "context": "${data.context}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+}

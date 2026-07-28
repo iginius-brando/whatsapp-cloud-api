@@ -4,7 +4,7 @@ import {
   encryptFlowResponse,
   type EncryptedFlowRequest,
 } from "@/lib/flows/crypto";
-import { handleAppointmentFlow } from "@/lib/flows/appointment";
+import { handleBookingFlow } from "@/lib/flows/booking";
 import { verifyWebhookSignature } from "@/lib/whatsapp";
 
 // Serve il runtime Node: crypto e chiavi RSA non esistono su Edge.
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 
   // 4. Logica del Flow.
   try {
-    const response = await handleAppointmentFlow(payload);
+    const response = await handleBookingFlow(payload);
     return encryptedResponse(response, context);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Errore sconosciuto";

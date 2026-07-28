@@ -166,11 +166,43 @@ Cliente conferma ──► nfm_reply ──► /api/whatsapp/webhook ──► F
 
 - `src/lib/flows/crypto.ts` — decifra le richieste (RSA-OAEP + AES-GCM) e cifra
   le risposte con l'IV invertito, come richiede la specifica.
-- `src/lib/flows/appointment.ts` — macchina a stati delle schermate. Le funzioni
-  `listDepartments` / `listLocations` / `listDates` / `listTimes` sono il punto in
-  cui collegare la disponibilità reale: oggi restituiscono dati di esempio.
+- `src/lib/flows/booking.ts` — macchina a stati delle schermate.
+- `flows/prenotazione.flow.json` — il Flow JSON da incollare nel Flow Builder.
+  Va tenuto allineato a `booking.ts`: i nomi dei campi devono corrispondere.
 - `src/app/api/whatsapp/flow-endpoint/route.ts` — l'endpoint da configurare su Meta.
 - `src/app/api/whatsapp/send-flow/route.ts` — invio del messaggio che apre il Flow.
+
+### Percorso del Flow
+
+```
+MENU ──┬─ prenotazione ────────► DATE ─► TIME ─► DETAILS ─► SUMMARY
+       └─ gestione ─► APPOINTMENTS ─┬─ spostare ─► DATE ─► TIME ─► SUMMARY
+                                    ├─ disdire ──────────────────► SUMMARY
+                                    └─ vedere ───────────────────► SUMMARY
+```
+
+Il Flow non ha memoria tra una richiesta e l'altra: lo stato viaggia dentro il
+campo `context`, una stringa JSON che ogni schermata riceve nei propri `data` e
+rispedisce nel payload del footer. Chi aggiunge una schermata deve ricordarsi di
+inoltrare `"context": "${data.context}"`, altrimenti le scelte precedenti si
+perdono.
+
+### Dove innestare i dati reali
+
+In `booking.ts`, nella sezione *Sorgenti dati*:
+
+| Funzione | Restituisce |
+|---|---|
+| `slotsFor(isoDate)` | orari liberi di un giorno |
+| `listMonths()` | mesi selezionabili |
+| `listDates(month)` | giorni con almeno uno slot libero |
+| `listSlots(isoDate)` | slot di un giorno, già formattati |
+| `listAppointments(waId)` | appuntamenti futuri del cliente |
+
+Oggi restituiscono dati fittizi ma **deterministici**: la stessa data produce
+sempre gli stessi orari, così l'elenco mostrato nella schermata DATE coincide con
+quello della schermata TIME. Sostituendole con query reali va mantenuta questa
+coerenza, altrimenti l'utente vede orari che poi non trova.
 
 ### 1. Genera la coppia di chiavi
 
