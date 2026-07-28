@@ -53,8 +53,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = payload.body?.trim() || "Prenota il tuo appuntamento";
-  const cta = payload.cta?.trim() || "Prenota";
+  const body =
+    payload.body?.trim() ||
+    "Da qui puoi prenotare una visita o gestire i tuoi appuntamenti.";
+  const cta = payload.cta?.trim() || "Apri";
   const header = payload.header?.trim();
 
   // Il flow_token lega la sessione di Flow alla conversazione: lo ritroviamo
