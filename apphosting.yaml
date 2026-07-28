@@ -55,16 +55,17 @@ env:
     availability: [RUNTIME]
 
   # --- WhatsApp Flows ---------------------------------------------------
-  # ID del Flow: non è un segreto, ma cambia tra bozza e versione pubblicata.
-  # Togli il commento e inserisci l'ID; App Hosting rifiuta un `value` vuoto,
-  # quindi la variabile va lasciata assente finché non si ha l'ID vero.
-  # - variable: WHATSAPP_FLOW_ID
-  #   value: "1234567890123456"
-  #   availability: [RUNTIME]
+  # ID del Flow "Flusso Prenotazione". Non è un segreto.
+  # Nota: App Hosting rifiuta un `value` vuoto, quindi se un giorno si toglie
+  # l'ID va commentata l'intera voce, non lasciata con le virgolette vuote.
+  - variable: WHATSAPP_FLOW_ID
+    value: "1550967203432683"
+    availability: [RUNTIME]
 
-  # Metti "true" finché il Flow è in bozza (invio consentito ai soli numeri di test).
+  # "true" finché il Flow è in bozza: l'invio funziona solo verso i numeri di
+  # test dell'app. Da rimettere a "false" dopo la pubblicazione del Flow.
   - variable: WHATSAPP_FLOW_DRAFT_MODE
-    value: "false"
+    value: "true"
     availability: [RUNTIME]
   # Chiave privata RSA del Flow Endpoint e relativa passphrase. Crea i segreti con:
   #   firebase apphosting:secrets:set whatsapp-flow-private-key
