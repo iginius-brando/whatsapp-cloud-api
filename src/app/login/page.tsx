@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
@@ -52,13 +53,18 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-wa-panel px-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-lg">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-wa-green text-white">
-            <svg viewBox="0 0 24 24" className="h-8 w-8" fill="currentColor">
-              <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm5.8 14.01c-.24.68-1.42 1.3-1.95 1.34-.5.04-.5.4-3.15-.66-2.65-1.06-4.3-3.77-4.43-3.94-.13-.18-1.06-1.41-1.06-2.69 0-1.28.67-1.91.9-2.17.24-.26.52-.33.7-.33h.5c.16 0 .38-.06.59.45.24.58.8 2 .87 2.14.07.14.12.31.02.5-.1.18-.15.3-.29.46-.14.16-.3.36-.43.48-.14.14-.29.29-.12.57.16.28.73 1.2 1.57 1.95 1.08.96 1.98 1.26 2.26 1.4.28.14.44.12.6-.07.16-.19.7-.81.88-1.09.18-.28.37-.23.62-.14.25.09 1.61.76 1.89.9.28.14.46.21.53.32.07.11.07.64-.17 1.32z" />
-            </svg>
+          <div className="mx-auto mb-3 h-20 w-20 overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-gray-200">
+            <Image
+              src="https://cdn.wdgtsrc.com/86576be2592f4a9e17407e97420512d17735347/ineko.jpg"
+              alt="Logo Ineko Sales Chat"
+              width={80}
+              height={80}
+              className="h-full w-full object-cover"
+              priority
+            />
           </div>
           <h1 className="text-xl font-semibold text-gray-800">
-            WhatsApp Cloud Chat
+            Ineko Sales Chat
           </h1>
           <p className="mt-1 text-sm text-gray-500">
             Accedi per gestire le conversazioni

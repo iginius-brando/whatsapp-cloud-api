@@ -3,7 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata: Metadata = {
-  title: "WhatsApp Cloud Chat",
+  title: "Ineko Sales Chat",
   description: "Interfaccia di chat basata sulle WhatsApp Cloud API",
 };
 
