@@ -5,6 +5,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import type {
   CompanyPrivacySettings,
   MessageMedia,
+  MessageReply,
   MessageStatus,
   MessageType,
 } from "@/lib/types";
@@ -30,6 +31,41 @@ function cleanMedia(media?: MessageMedia): MessageMedia | undefined {
   return Object.fromEntries(entries) as MessageMedia;
 }
 
+/** Lunghezza massima dell'anteprima citata: basta per riconoscere il messaggio. */
+const REPLY_PREVIEW_LENGTH = 200;
+
+/**
+ * Costruisce l'istantanea del messaggio citato leggendolo da Firestore.
+ * Se non lo troviamo — conversazione più vecchia dei nostri dati, o messaggio
+ * mai transitato da qui — restituiamo comunque l'id: la UI mostrerà una
+ * citazione generica invece di perdere il riferimento.
+ */
+async function resolveReplyContext(
+  waId: string,
+  replyToMessageId: string,
+): Promise<MessageReply> {
+  const snap = await messageRef(waId, replyToMessageId)
+    .get()
+    .catch(() => null);
+  const data = snap?.data();
+
+  if (!data) return { id: replyToMessageId };
+
+  const preview =
+    (typeof data.text === "string" && data.text) ||
+    (typeof data.mediaCaption === "string" && data.mediaCaption) ||
+    "";
+
+  return {
+    id: replyToMessageId,
+    ...(data.direction === "in" || data.direction === "out"
+      ? { direction: data.direction }
+      : {}),
+    ...(typeof data.type === "string" ? { type: data.type as MessageType } : {}),
+    ...(preview ? { text: preview.slice(0, REPLY_PREVIEW_LENGTH) } : {}),
+  };
+}
+
 interface InboundMessageInput {
   waId: string;
   profileName?: string;
@@ -39,6 +75,8 @@ interface InboundMessageInput {
   mediaCaption?: string;
   /** Allegato ricevuto (image/video/audio/document/sticker). */
   media?: MessageMedia;
+  /** wamid del messaggio citato, se il cliente ha risposto a un messaggio. */
+  replyToMessageId?: string;
   timestamp: number;
   /** Presenti solo sulle risposte a un Flow (nfm_reply). */
   flowToken?: string;
@@ -61,6 +99,9 @@ export async function saveInboundMessage(input: InboundMessageInput): Promise<vo
 
   const preview = text || mediaCaption || `[${type}]`;
   const media = cleanMedia(input.media);
+  const replyTo = input.replyToMessageId
+    ? await resolveReplyContext(waId, input.replyToMessageId)
+    : undefined;
 
   const batch = adminDb.batch();
 
@@ -88,6 +129,7 @@ export async function saveInboundMessage(input: InboundMessageInput): Promise<vo
       ...(text ? { text } : {}),
       ...(mediaCaption ? { mediaCaption } : {}),
       ...(media ? { media } : {}),
+      ...(replyTo ? { replyTo } : {}),
       ...(flowToken ? { flowToken } : {}),
       ...(flowResponse ? { flowResponse } : {}),
       timestamp,
@@ -108,6 +150,8 @@ interface OutboundMessageInput {
   mediaCaption?: string;
   /** Allegato inviato (image/video/audio/document/sticker). */
   media?: MessageMedia;
+  /** wamid del messaggio citato, se l'operatore ha risposto a un messaggio. */
+  replyToMessageId?: string;
   timestamp: number;
   status?: MessageStatus;
   /** Default "text": vale "interactive" per i Flow o "template" per i modelli Meta. */
@@ -132,6 +176,9 @@ export async function saveOutboundMessage(
 
   const preview = text || mediaCaption || `[${type}]`;
   const media = cleanMedia(input.media);
+  const replyTo = input.replyToMessageId
+    ? await resolveReplyContext(waId, input.replyToMessageId)
+    : undefined;
 
   const batch = adminDb.batch();
 
@@ -157,6 +204,7 @@ export async function saveOutboundMessage(
       ...(text ? { text } : {}),
       ...(mediaCaption ? { mediaCaption } : {}),
       ...(media ? { media } : {}),
+      ...(replyTo ? { replyTo } : {}),
       status,
       ...(flowToken ? { flowToken } : {}),
       timestamp,

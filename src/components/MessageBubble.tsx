@@ -1,9 +1,41 @@
 "use client";
 
-import type { ChatMessage } from "@/lib/types";
-import { formatTime } from "@/lib/format";
+import type { ChatMessage, MessageReply } from "@/lib/types";
+import { formatTime, messagePreview } from "@/lib/format";
 import { isMediaMessageType } from "@/lib/media";
 import MediaAttachment from "./MediaAttachment";
+
+/**
+ * Porta in vista il messaggio citato. Se è più vecchio della finestra caricata
+ * dalla chat non c'è nulla da raggiungere: l'anteprima resta comunque leggibile.
+ */
+function scrollToMessage(messageId: string): void {
+  const element = document.getElementById(`msg-${messageId}`);
+  if (!element) return;
+
+  element.scrollIntoView({ behavior: "smooth", block: "center" });
+  element.classList.add("quote-flash");
+  window.setTimeout(() => element.classList.remove("quote-flash"), 1200);
+}
+
+/** Blocco della citazione, sopra al contenuto della bolla. */
+function QuotedMessage({ reply }: { reply: MessageReply }) {
+  return (
+    <button
+      type="button"
+      onClick={() => scrollToMessage(reply.id)}
+      title="Vai al messaggio originale"
+      className="mb-1 block w-full overflow-hidden rounded-md border-l-4 border-wa-teal bg-black/[0.06] px-2 py-1 text-left transition hover:bg-black/10"
+    >
+      <span className="block text-xs font-semibold text-wa-teal">
+        {reply.direction === "out" ? "Tu" : "Cliente"}
+      </span>
+      <span className="block truncate text-xs text-gray-600">
+        {messagePreview(reply)}
+      </span>
+    </button>
+  );
+}
 
 /** Doppia spunta / stato di consegna per i messaggi in uscita. */
 function StatusTicks({ status }: { status?: ChatMessage["status"] }) {
@@ -46,7 +78,13 @@ function FlowResponse({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-export default function MessageBubble({ message }: { message: ChatMessage }) {
+interface Props {
+  message: ChatMessage;
+  /** Assente se la conversazione non accetta risposte (finestra 24h scaduta). */
+  onReply?: (message: ChatMessage) => void;
+}
+
+export default function MessageBubble({ message, onReply }: Props) {
   const isOut = message.direction === "out";
   const hasAttachment =
     isMediaMessageType(message.type) && Boolean(message.media?.id);
@@ -56,13 +94,36 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
     message.text || (hasAttachment ? "" : message.mediaCaption) || "";
   const isFlowInvite = isOut && message.type === "interactive";
 
+  const replyButton = onReply ? (
+    <button
+      type="button"
+      onClick={() => onReply(message)}
+      title="Rispondi"
+      aria-label="Rispondi a questo messaggio"
+      // Su desktop compare al passaggio del mouse; su touch resta sempre
+      // visibile in sordina, dove l'hover non esiste.
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-60 transition hover:bg-black/10 hover:text-wa-teal focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+        <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" />
+      </svg>
+    </button>
+  ) : null;
+
   return (
-    <div className={`flex ${isOut ? "justify-end" : "justify-start"} px-2`}>
+    <div
+      id={`msg-${message.id}`}
+      className={`group flex items-center gap-1 px-2 ${
+        isOut ? "justify-end" : "justify-start"
+      }`}
+    >
+      {isOut && replyButton}
       <div
         className={`relative my-0.5 max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm sm:max-w-[75%] ${
           isOut ? "bg-wa-bubbleOut" : "bg-wa-bubbleIn"
         }`}
       >
+        {message.replyTo && <QuotedMessage reply={message.replyTo} />}
         {hasAttachment && (
           <div className="mb-1 mt-0.5 overflow-hidden">
             <MediaAttachment message={message} />
@@ -84,6 +145,7 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
           {isOut && <StatusTicks status={message.status} />}
         </span>
       </div>
+      {!isOut && replyButton}
     </div>
   );
 }

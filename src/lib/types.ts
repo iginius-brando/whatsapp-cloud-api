@@ -43,6 +43,20 @@ export interface MessageMedia {
   animated?: boolean;
 }
 
+/**
+ * Messaggio citato in risposta. Oltre all'id teniamo un'istantanea del
+ * contenuto: il messaggio originale può essere fuori dalla finestra di 500
+ * caricata dalla chat, e la citazione deve restare leggibile lo stesso.
+ */
+export interface MessageReply {
+  /** wamid del messaggio a cui si risponde. */
+  id: string;
+  direction?: MessageDirection;
+  type?: MessageType;
+  /** Anteprima testuale, fotografata al momento della risposta. */
+  text?: string;
+}
+
 export interface ChatMessage {
   /** wamid del messaggio WhatsApp (o id temporaneo per gli outbound in coda). */
   id: string;
@@ -55,6 +69,8 @@ export interface ChatMessage {
   mediaCaption?: string;
   /** Allegato, sui messaggi image/video/audio/document/sticker. */
   media?: MessageMedia;
+  /** Messaggio citato, quando questo è una risposta. */
+  replyTo?: MessageReply;
   error?: string;
   /** Millisecondi epoch del momento in cui WhatsApp ha registrato il messaggio. */
   timestamp: number;

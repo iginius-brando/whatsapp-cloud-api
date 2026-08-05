@@ -103,15 +103,28 @@ async function postMessage(
   return { messageId };
 }
 
-/** Invia un messaggio di testo libero tramite la Cloud API. */
+/**
+ * Citazione di un messaggio precedente: è l'oggetto `context` del payload, ciò
+ * che WhatsApp mostra come risposta ("reply") sopra la bolla.
+ */
+function replyContext(replyToMessageId?: string): Record<string, unknown> {
+  return replyToMessageId ? { context: { message_id: replyToMessageId } } : {};
+}
+
+/**
+ * Invia un messaggio di testo libero tramite la Cloud API.
+ * Con `replyToMessageId` il messaggio parte come risposta a quel wamid.
+ */
 export async function sendTextMessage(
   to: string,
   body: string,
+  replyToMessageId?: string,
 ): Promise<SendTextResult> {
   return postMessage({
     to,
     type: "text",
     text: { preview_url: true, body },
+    ...replyContext(replyToMessageId),
   });
 }
 
@@ -173,6 +186,8 @@ export interface SendMediaOptions {
   caption?: string;
   /** Nome mostrato al cliente, solo per i documenti. */
   filename?: string;
+  /** wamid del messaggio citato, per inviare l'allegato come risposta. */
+  replyToMessageId?: string;
 }
 
 /** Invia un allegato già caricato (immagine, video, audio, documento, sticker). */
@@ -180,14 +195,19 @@ export async function sendMediaMessage(
   to: string,
   options: SendMediaOptions,
 ): Promise<SendTextResult> {
-  const { kind, mediaId, caption, filename } = options;
+  const { kind, mediaId, caption, filename, replyToMessageId } = options;
 
   const media: Record<string, string> = { id: mediaId };
   const acceptsCaption = kind !== "audio" && kind !== "sticker";
   if (caption && acceptsCaption) media.caption = caption;
   if (kind === "document" && filename) media.filename = filename;
 
-  return postMessage({ to, type: kind, [kind]: media });
+  return postMessage({
+    to,
+    type: kind,
+    [kind]: media,
+    ...replyContext(replyToMessageId),
+  });
 }
 
 export interface WhatsAppMediaMetadata {
