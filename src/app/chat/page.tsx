@@ -25,16 +25,16 @@ export default function ChatPage() {
 
   if (authLoading || !user) {
     return (
-      <div className="flex h-screen items-center justify-center bg-wa-panel text-wa-teal">
+      <div className="flex min-h-dvh items-center justify-center bg-wa-panel text-wa-teal">
         Caricamento…
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-white">
       {/* Su mobile mostriamo lista o conversazione, non entrambe. */}
-      <div className={`${selected ? "hidden md:flex" : "flex"} h-full`}>
+      <div className={`${selected ? "hidden md:flex" : "flex"} h-full min-h-0 w-full md:w-auto`}>
         <ChatList
           conversations={conversations}
           loading={loading}
@@ -44,7 +44,7 @@ export default function ChatPage() {
       </div>
 
       <div
-        className={`${selected ? "flex" : "hidden md:flex"} h-full flex-1`}
+        className={`${selected ? "flex" : "hidden md:flex"} h-full min-h-0 min-w-0 flex-1`}
       >
         <ChatWindow
           conversation={selected}

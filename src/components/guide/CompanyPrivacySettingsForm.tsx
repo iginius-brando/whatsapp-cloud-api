@@ -79,7 +79,7 @@ export default function CompanyPrivacySettingsForm() {
   }
 
   return (
-    <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
+    <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm sm:p-6">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
           <p className="text-sm font-medium text-wa-teal">Dati privacy azienda</p>
@@ -95,7 +95,7 @@ export default function CompanyPrivacySettingsForm() {
           href="/privacy"
           target="_blank"
           rel="noreferrer"
-          className="rounded-lg border border-gray-200 px-4 py-2 text-center text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+          className="w-full rounded-lg border border-gray-200 px-4 py-2 text-center text-sm font-medium text-gray-700 transition hover:bg-gray-50 md:w-auto"
         >
           Apri /privacy
         </a>
@@ -189,7 +189,7 @@ export default function CompanyPrivacySettingsForm() {
           <button
             type="submit"
             disabled={loading || saving}
-            className="rounded-lg bg-wa-teal px-5 py-2.5 text-sm font-medium text-white transition hover:bg-wa-dark disabled:opacity-60"
+            className="w-full rounded-lg bg-wa-teal px-5 py-2.5 text-sm font-medium text-white transition hover:bg-wa-dark disabled:opacity-60 sm:w-auto"
           >
             {saving ? "Salvataggio…" : "Salva dati privacy"}
           </button>

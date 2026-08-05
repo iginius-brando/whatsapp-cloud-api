@@ -43,25 +43,25 @@ export default function GuidePage() {
 
   if (loading || !user) {
     return (
-      <div className="flex h-screen items-center justify-center bg-wa-panel text-wa-teal">
+      <div className="flex min-h-dvh items-center justify-center bg-wa-panel text-wa-teal">
         Caricamento…
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-wa-panel px-4 py-8">
+    <main className="min-h-dvh bg-wa-panel px-4 py-6 sm:py-8">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-wa-teal">Guida</p>
-            <h1 className="text-2xl font-semibold text-gray-900">
+            <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">
               Token stabile WhatsApp da System User
             </h1>
           </div>
           <Link
             href="/chat"
-            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+            className="w-full rounded-lg bg-white px-4 py-2 text-center text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 sm:w-auto"
           >
             Torna alla chat
           </Link>
@@ -69,7 +69,7 @@ export default function GuidePage() {
 
         <CompanyPrivacySettingsForm />
 
-        <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
+        <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm sm:p-6">
           <p className="text-sm leading-6 text-gray-600">
             Il token di test generato nel pannello API Setup di Meta può scadere.
             Per la produzione usa un token generato da un System User del Business
