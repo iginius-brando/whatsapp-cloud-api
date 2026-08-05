@@ -61,3 +61,11 @@ export function isWithinServiceWindow(lastInboundAt?: number): boolean {
   const DAY_MS = 24 * 60 * 60 * 1000;
   return Date.now() - lastInboundAt < DAY_MS;
 }
+
+export interface CompanyPrivacySettings {
+  companyName?: string;
+  legalAddress?: string;
+  privacyEmail?: string;
+  retentionPeriod?: string;
+  updatedAt?: Timestamp | null;
+}

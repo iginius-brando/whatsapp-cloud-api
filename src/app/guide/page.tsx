@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import CompanyPrivacySettingsForm from "@/components/guide/CompanyPrivacySettingsForm";
 
 const steps = [
   {
@@ -66,7 +67,9 @@ export default function GuidePage() {
           </Link>
         </div>
 
-        <section className="rounded-2xl bg-white p-6 shadow-sm">
+        <CompanyPrivacySettingsForm />
+
+        <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
           <p className="text-sm leading-6 text-gray-600">
             Il token di test generato nel pannello API Setup di Meta può scadere.
             Per la produzione usa un token generato da un System User del Business
@@ -95,6 +98,25 @@ export default function GuidePage() {
               </code>
               .
             </p>
+          </div>
+
+
+          <div className="mt-6 rounded-xl bg-green-50 p-4 text-sm text-green-900">
+            <h2 className="font-semibold">Checklist pubblicazione app Meta</h2>
+            <p className="mt-1">
+              Prima di cliccare &quot;Pubblica&quot; o inviare la configurazione a Meta,
+              controlla questi punti nell&apos;ordine.
+            </p>
+            <ol className="mt-3 list-decimal space-y-1 pl-5">
+              <li>La pagina privacy pubblica si apre dal dominio finale: /privacy.</li>
+              <li>Il token di test è stato sostituito con un token da System User.</li>
+              <li>Il secret whatsapp-access-token ha una nuova versione attiva.</li>
+              <li>Il deploy/rollout è stato eseguito dopo il cambio secret.</li>
+              <li>Il check Numero WhatsApp torna Collegato.</li>
+              <li>Il webhook pubblico è configurato in WhatsApp Manager.</li>
+              <li>Nel webhook Meta è sottoscritto il campo messages.</li>
+              <li>Il Flow, se usato, è pubblicato o configurato correttamente in bozza.</li>
+            </ol>
           </div>
 
           <div className="mt-6 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">

@@ -1,11 +1,23 @@
+import { getCompanyPrivacySettings } from "@/lib/firebase/firestore-admin";
+
 export const metadata = {
   title: "Privacy Policy | WhatsApp Cloud Chat",
   description: "Informativa privacy per l'utilizzo del canale WhatsApp.",
 };
 
+export const dynamic = "force-dynamic";
+
 const lastUpdated = "5 agosto 2026";
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const settings = await getCompanyPrivacySettings();
+  const companyName = settings.companyName || "[Nome azienda]";
+  const legalAddress = settings.legalAddress || "[Indirizzo sede legale]";
+  const privacyEmail = settings.privacyEmail || "[Email privacy]";
+  const retentionPeriod =
+    settings.retentionPeriod ||
+    "[Inserire il periodo di conservazione adottato dall&apos;azienda]";
+
   return (
     <main className="min-h-screen bg-wa-panel px-4 py-10 text-gray-800">
       <article className="mx-auto max-w-3xl rounded-2xl bg-white p-6 shadow-sm md:p-10">
@@ -23,11 +35,10 @@ export default function PrivacyPage() {
               1. Titolare del trattamento
             </h2>
             <p className="mt-2">
-              Questa applicazione è gestita dal titolare del progetto che usa il
-              canale WhatsApp Business per comunicare con clienti e utenti. Prima
-              della pubblicazione definitiva, sostituisci questa sezione con la
-              ragione sociale, l&apos;indirizzo e l&apos;email privacy ufficiale
-              dell&apos;azienda.
+              <strong>{companyName}</strong> gestisce questa applicazione e usa
+              il canale WhatsApp Business per comunicare con clienti e utenti.
+              Sede/indirizzo: <strong>{legalAddress}</strong>. Per richieste
+              privacy: <strong>{privacyEmail}</strong>.
             </p>
           </section>
 
@@ -81,10 +92,7 @@ export default function PrivacyPage() {
               6. Conservazione
             </h2>
             <p className="mt-2">
-              I dati vengono conservati per il tempo necessario a gestire la
-              richiesta e per eventuali obblighi amministrativi, tecnici o legali.
-              Definisci qui il periodo di conservazione specifico adottato dalla
-              tua organizzazione.
+              {retentionPeriod}
             </p>
           </section>
 
@@ -95,16 +103,17 @@ export default function PrivacyPage() {
             <p className="mt-2">
               L&apos;utente può richiedere accesso, rettifica, cancellazione,
               limitazione, opposizione e portabilità dei dati, ove applicabile.
-              Inserisci qui l&apos;indirizzo email a cui inviare le richieste privacy.
+              Le richieste possono essere inviate a <strong>{privacyEmail}</strong>.
             </p>
           </section>
 
           <section className="rounded-xl bg-amber-50 p-4 text-amber-900">
             <h2 className="font-semibold">Nota operativa</h2>
             <p className="mt-1">
-              Questa è una bozza pronta per fornire un URL pubblico a Meta. Prima
+              Questa informativa è pensata come base operativa per Meta. Prima
               di usarla definitivamente, falla validare dal consulente privacy o
-              legale e completa i dati aziendali mancanti.
+              legale. I dati aziendali visibili qui possono essere aggiornati
+              dalla sezione Guida dell&apos;app.
             </p>
           </section>
         </div>
