@@ -7,7 +7,8 @@ import {
   saveInboundMessage,
   updateMessageStatus,
 } from "@/lib/firebase/firestore-admin";
-import type { MessageStatus, MessageType } from "@/lib/types";
+import type { MessageMedia, MessageStatus, MessageType } from "@/lib/types";
+import { mediaPlaceholder, type MediaKind } from "@/lib/media";
 
 // Il webhook deve girare nel runtime Node (Admin SDK + crypto), non su Edge.
 export const runtime = "nodejs";
@@ -102,6 +103,7 @@ async function handleInboundMessage(
 
   let text: string | undefined;
   let mediaCaption: string | undefined;
+  let media: MessageMedia | undefined;
   let flowToken: string | undefined;
   let flowResponse: Record<string, unknown> | undefined;
 
@@ -138,20 +140,31 @@ async function handleInboundMessage(
       break;
     }
     case "image":
-      mediaCaption = message.image?.caption || "[immagine]";
-      break;
     case "video":
-      mediaCaption = message.video?.caption || "[video]";
-      break;
-    case "document":
-      mediaCaption = message.document?.caption || "[documento]";
-      break;
     case "audio":
-      mediaCaption = "[audio]";
+    case "document":
+    case "sticker": {
+      // Il payload contiene solo l'id del media: i byte si scaricano a parte
+      // da /api/whatsapp/media/{id} finché Meta li conserva (30 giorni).
+      const kind = message.type as MediaKind;
+      const attachment = message[kind] as WhatsAppMediaObject | undefined;
+
+      if (attachment?.id) {
+        media = {
+          id: attachment.id,
+          mimeType: attachment.mime_type?.split(";")[0],
+          filename: attachment.filename,
+          sha256: attachment.sha256,
+          ...(attachment.voice != null ? { voice: attachment.voice } : {}),
+          ...(attachment.animated != null ? { animated: attachment.animated } : {}),
+        };
+      }
+
+      text = attachment?.caption || undefined;
+      mediaCaption =
+        attachment?.filename || mediaPlaceholder(kind, attachment?.voice);
       break;
-    case "sticker":
-      mediaCaption = "[sticker]";
-      break;
+    }
     case "location":
       mediaCaption = "[posizione]";
       break;
@@ -166,6 +179,7 @@ async function handleInboundMessage(
     type,
     text,
     mediaCaption,
+    media,
     timestamp,
     flowToken,
     flowResponse,
@@ -204,15 +218,31 @@ interface WhatsAppChangeValue {
   statuses?: WhatsAppStatus[];
 }
 
+/** Oggetto allegato dei messaggi image/video/audio/document/sticker. */
+interface WhatsAppMediaObject {
+  id?: string;
+  mime_type?: string;
+  sha256?: string;
+  caption?: string;
+  /** Solo sui documenti. */
+  filename?: string;
+  /** Solo sugli audio: true se è un messaggio vocale registrato. */
+  voice?: boolean;
+  /** Solo sugli sticker. */
+  animated?: boolean;
+}
+
 interface WhatsAppInboundMessage {
   from: string;
   id: string;
   timestamp: string;
   type: string;
   text?: { body?: string };
-  image?: { caption?: string };
-  video?: { caption?: string };
-  document?: { caption?: string };
+  image?: WhatsAppMediaObject;
+  video?: WhatsAppMediaObject;
+  audio?: WhatsAppMediaObject;
+  document?: WhatsAppMediaObject;
+  sticker?: WhatsAppMediaObject;
   interactive?: {
     type?: string;
     /** Risposta a un Flow. */

@@ -24,6 +24,25 @@ export type MessageType =
   | "interactive"
   | "unsupported";
 
+/** Allegato di un messaggio: i byte restano su WhatsApp, noi teniamo l'id. */
+export interface MessageMedia {
+  /**
+   * Media id di WhatsApp. Si scarica da `/api/whatsapp/media/{id}`; Meta
+   * conserva i file 30 giorni, poi l'allegato non è più recuperabile.
+   */
+  id: string;
+  mimeType?: string;
+  /** Nome originale del file (documenti). */
+  filename?: string;
+  /** Dimensione in byte, quando nota. */
+  size?: number;
+  sha256?: string;
+  /** True sui messaggi vocali registrati, false sugli audio allegati. */
+  voice?: boolean;
+  /** True sugli sticker animati. */
+  animated?: boolean;
+}
+
 export interface ChatMessage {
   /** wamid del messaggio WhatsApp (o id temporaneo per gli outbound in coda). */
   id: string;
@@ -34,6 +53,8 @@ export interface ChatMessage {
   status?: MessageStatus;
   /** Descrizione del media / tipo non testuale, quando `text` non basta. */
   mediaCaption?: string;
+  /** Allegato, sui messaggi image/video/audio/document/sticker. */
+  media?: MessageMedia;
   error?: string;
   /** Millisecondi epoch del momento in cui WhatsApp ha registrato il messaggio. */
   timestamp: number;
