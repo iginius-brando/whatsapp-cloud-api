@@ -3,6 +3,7 @@
 import type { Conversation } from "@/lib/types";
 import { formatListTimestamp, initialOf } from "@/lib/format";
 import { useAuth } from "@/context/AuthContext";
+import ConnectionChecks from "./ConnectionChecks";
 
 interface Props {
   conversations: Conversation[];
@@ -39,6 +40,8 @@ export default function ChatList({
           Esci
         </button>
       </div>
+
+      <ConnectionChecks />
 
       {/* Elenco conversazioni */}
       <div className="flex-1 overflow-y-auto thin-scroll">
