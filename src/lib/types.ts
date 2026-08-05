@@ -64,8 +64,14 @@ export function isWithinServiceWindow(lastInboundAt?: number): boolean {
 
 export interface CompanyPrivacySettings {
   companyName?: string;
+  appName?: string;
+  legalName?: string;
   legalAddress?: string;
+  taxId?: string;
   privacyEmail?: string;
+  /** Campo legacy mantenuto per compatibilità con impostazioni già salvate. */
   retentionPeriod?: string;
+  messageRetentionPeriod?: string;
+  legalRetentionPeriod?: string;
   updatedAt?: Timestamp | null;
 }

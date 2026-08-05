@@ -6,9 +6,14 @@ import type { CompanyPrivacySettings } from "@/lib/types";
 
 const emptySettings: CompanyPrivacySettings = {
   companyName: "",
+  appName: "",
+  legalName: "",
   legalAddress: "",
+  taxId: "",
   privacyEmail: "",
   retentionPeriod: "",
+  messageRetentionPeriod: "",
+  legalRetentionPeriod: "",
 };
 
 export default function CompanyPrivacySettingsForm() {
@@ -108,7 +113,47 @@ export default function CompanyPrivacySettingsForm() {
           />
         </label>
         <label className="text-sm font-medium text-gray-700">
-          Email privacy
+          Nome applicazione
+          <input
+            value={settings.appName ?? ""}
+            onChange={(e) => updateField("appName", e.target.value)}
+            placeholder="Es. WhatsApp Cloud Chat"
+            disabled={loading || saving}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-wa-teal disabled:bg-gray-50"
+          />
+        </label>
+        <label className="text-sm font-medium text-gray-700">
+          Ragione sociale / titolare trattamento
+          <input
+            value={settings.legalName ?? ""}
+            onChange={(e) => updateField("legalName", e.target.value)}
+            placeholder="Es. Acme S.r.l. / Mario Rossi"
+            disabled={loading || saving}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-wa-teal disabled:bg-gray-50"
+          />
+        </label>
+        <label className="text-sm font-medium text-gray-700">
+          Codice fiscale / P.IVA
+          <input
+            value={settings.taxId ?? ""}
+            onChange={(e) => updateField("taxId", e.target.value)}
+            placeholder="Es. 01234567890"
+            disabled={loading || saving}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-wa-teal disabled:bg-gray-50"
+          />
+        </label>
+        <label className="text-sm font-medium text-gray-700 md:col-span-2">
+          Indirizzo completo / sede legale
+          <input
+            value={settings.legalAddress ?? ""}
+            onChange={(e) => updateField("legalAddress", e.target.value)}
+            placeholder="Via, città, CAP, Paese"
+            disabled={loading || saving}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-wa-teal disabled:bg-gray-50"
+          />
+        </label>
+        <label className="text-sm font-medium text-gray-700 md:col-span-2">
+          Email dedicata privacy
           <input
             type="email"
             value={settings.privacyEmail ?? ""}
@@ -119,21 +164,21 @@ export default function CompanyPrivacySettingsForm() {
           />
         </label>
         <label className="text-sm font-medium text-gray-700 md:col-span-2">
-          Indirizzo / sede legale
+          Conservazione dati messaggistica/interazione
           <input
-            value={settings.legalAddress ?? ""}
-            onChange={(e) => updateField("legalAddress", e.target.value)}
-            placeholder="Via, città, CAP, Paese"
+            value={settings.messageRetentionPeriod ?? settings.retentionPeriod ?? ""}
+            onChange={(e) => updateField("messageRetentionPeriod", e.target.value)}
+            placeholder="Es. 30 giorni / 6 mesi"
             disabled={loading || saving}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-wa-teal disabled:bg-gray-50"
           />
         </label>
         <label className="text-sm font-medium text-gray-700 md:col-span-2">
-          Periodo di conservazione
+          Conservazione dati contabili/legali
           <textarea
-            value={settings.retentionPeriod ?? ""}
-            onChange={(e) => updateField("retentionPeriod", e.target.value)}
-            placeholder="Es. conserviamo le conversazioni per 24 mesi, salvo obblighi di legge."
+            value={settings.legalRetentionPeriod ?? ""}
+            onChange={(e) => updateField("legalRetentionPeriod", e.target.value)}
+            placeholder="Es. 10 anni per documentazione fiscale, salvo obblighi diversi di legge."
             disabled={loading || saving}
             rows={3}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-wa-teal disabled:bg-gray-50"

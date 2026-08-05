@@ -40,9 +40,14 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const settings: CompanyPrivacySettings = {
       companyName: normalize(body.companyName),
+      appName: normalize(body.appName),
+      legalName: normalize(body.legalName),
       legalAddress: normalize(body.legalAddress),
+      taxId: normalize(body.taxId),
       privacyEmail: normalize(body.privacyEmail),
       retentionPeriod: normalize(body.retentionPeriod),
+      messageRetentionPeriod: normalize(body.messageRetentionPeriod),
+      legalRetentionPeriod: normalize(body.legalRetentionPeriod),
     };
 
     await saveCompanyPrivacySettings(settings);

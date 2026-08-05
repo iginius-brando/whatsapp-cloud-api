@@ -198,11 +198,22 @@ export async function getCompanyPrivacySettings(): Promise<CompanyPrivacySetting
   const data = snap.data() ?? {};
   return {
     companyName: typeof data.companyName === "string" ? data.companyName : undefined,
+    appName: typeof data.appName === "string" ? data.appName : undefined,
+    legalName: typeof data.legalName === "string" ? data.legalName : undefined,
     legalAddress:
       typeof data.legalAddress === "string" ? data.legalAddress : undefined,
+    taxId: typeof data.taxId === "string" ? data.taxId : undefined,
     privacyEmail: typeof data.privacyEmail === "string" ? data.privacyEmail : undefined,
     retentionPeriod:
       typeof data.retentionPeriod === "string" ? data.retentionPeriod : undefined,
+    messageRetentionPeriod:
+      typeof data.messageRetentionPeriod === "string"
+        ? data.messageRetentionPeriod
+        : undefined,
+    legalRetentionPeriod:
+      typeof data.legalRetentionPeriod === "string"
+        ? data.legalRetentionPeriod
+        : undefined,
     updatedAt: data.updatedAt ?? null,
   };
 }
@@ -213,9 +224,14 @@ export async function saveCompanyPrivacySettings(
   await adminDb.collection(SETTINGS).doc(COMPANY_SETTINGS_ID).set(
     {
       companyName: settings.companyName ?? "",
+      appName: settings.appName ?? "",
+      legalName: settings.legalName ?? "",
       legalAddress: settings.legalAddress ?? "",
+      taxId: settings.taxId ?? "",
       privacyEmail: settings.privacyEmail ?? "",
       retentionPeriod: settings.retentionPeriod ?? "",
+      messageRetentionPeriod: settings.messageRetentionPeriod ?? "",
+      legalRetentionPeriod: settings.legalRetentionPeriod ?? "",
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true },
