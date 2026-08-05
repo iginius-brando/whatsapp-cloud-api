@@ -2,7 +2,11 @@ import "server-only";
 
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
-import type { MessageStatus, MessageType } from "@/lib/types";
+import type {
+  CompanyPrivacySettings,
+  MessageStatus,
+  MessageType,
+} from "@/lib/types";
 
 const CONVERSATIONS = "conversations";
 
@@ -182,4 +186,54 @@ export async function updateMessageStatus(
       // Lo status può arrivare prima che il messaggio sia stato salvato in rari
       // casi di corsa: il merge crea comunque il documento, quindi ignoriamo.
     });
+}
+
+const SETTINGS = "settings";
+const COMPANY_SETTINGS_ID = "company";
+
+export async function getCompanyPrivacySettings(): Promise<CompanyPrivacySettings> {
+  const snap = await adminDb.collection(SETTINGS).doc(COMPANY_SETTINGS_ID).get();
+  if (!snap.exists) return {};
+
+  const data = snap.data() ?? {};
+  return {
+    companyName: typeof data.companyName === "string" ? data.companyName : undefined,
+    appName: typeof data.appName === "string" ? data.appName : undefined,
+    legalName: typeof data.legalName === "string" ? data.legalName : undefined,
+    legalAddress:
+      typeof data.legalAddress === "string" ? data.legalAddress : undefined,
+    taxId: typeof data.taxId === "string" ? data.taxId : undefined,
+    privacyEmail: typeof data.privacyEmail === "string" ? data.privacyEmail : undefined,
+    retentionPeriod:
+      typeof data.retentionPeriod === "string" ? data.retentionPeriod : undefined,
+    messageRetentionPeriod:
+      typeof data.messageRetentionPeriod === "string"
+        ? data.messageRetentionPeriod
+        : undefined,
+    legalRetentionPeriod:
+      typeof data.legalRetentionPeriod === "string"
+        ? data.legalRetentionPeriod
+        : undefined,
+    updatedAt: data.updatedAt ?? null,
+  };
+}
+
+export async function saveCompanyPrivacySettings(
+  settings: CompanyPrivacySettings,
+): Promise<void> {
+  await adminDb.collection(SETTINGS).doc(COMPANY_SETTINGS_ID).set(
+    {
+      companyName: settings.companyName ?? "",
+      appName: settings.appName ?? "",
+      legalName: settings.legalName ?? "",
+      legalAddress: settings.legalAddress ?? "",
+      taxId: settings.taxId ?? "",
+      privacyEmail: settings.privacyEmail ?? "",
+      retentionPeriod: settings.retentionPeriod ?? "",
+      messageRetentionPeriod: settings.messageRetentionPeriod ?? "",
+      legalRetentionPeriod: settings.legalRetentionPeriod ?? "",
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
 }
