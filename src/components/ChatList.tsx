@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import type { Conversation } from "@/lib/types";
 import { formatListTimestamp, initialOf } from "@/lib/format";
 import { useAuth } from "@/context/AuthContext";
+import ConnectionChecks from "./ConnectionChecks";
 
 interface Props {
   conversations: Conversation[];
@@ -31,14 +33,24 @@ export default function ChatList({
             {user?.displayName || user?.email}
           </span>
         </div>
-        <button
-          onClick={() => void signOut()}
-          className="text-xs text-gray-500 hover:text-gray-800"
-          title="Esci"
-        >
-          Esci
-        </button>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/guide"
+            className="text-xs font-medium text-wa-teal hover:text-wa-dark"
+          >
+            Guida
+          </Link>
+          <button
+            onClick={() => void signOut()}
+            className="text-xs text-gray-500 hover:text-gray-800"
+            title="Esci"
+          >
+            Esci
+          </button>
+        </div>
       </div>
+
+      <ConnectionChecks />
 
       {/* Elenco conversazioni */}
       <div className="flex-1 overflow-y-auto thin-scroll">
