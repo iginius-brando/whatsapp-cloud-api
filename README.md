@@ -60,7 +60,8 @@ src/
 ├── context/AuthContext.tsx    # stato autenticazione
 ├── hooks/
 │   ├── useChat.ts             # sottoscrizioni Firestore realtime
-│   └── useMedia.ts            # download allegati + cache degli object URL
+│   ├── useMedia.ts            # download allegati + cache degli object URL
+│   └── useSwipeToReply.ts     # gesto "trascina per rispondere" su touch
 └── lib/
     ├── firebase/client.ts     # SDK client
     ├── firebase/admin.ts      # SDK admin (server)
@@ -290,11 +291,32 @@ risposta.
 
 ### Dal lato operatore
 
-Passando sopra una bolla compare l'icona *Rispondi* (su touch è sempre visibile,
-in sordina). Il messaggio scelto appare come striscia sopra la casella di
-scrittura, con la X per annullare, e vale sia per il testo che per un allegato.
-Cliccando una citazione la chat salta al messaggio originale, che lampeggia un
-istante.
+Per citare un messaggio, come nell'app WhatsApp:
+
+- **Da telefono o tablet**: si trascina la bolla verso destra e si rilascia
+  (`src/hooks/useSwipeToReply.ts`).
+- **Da computer**: compare l'icona *Rispondi* passando sopra la bolla, come su
+  WhatsApp Web. Col mouse il trascinamento serve a selezionare il testo, quindi
+  il gesto è riservato a dito e pennino.
+
+Il messaggio scelto appare come striscia sopra la casella di scrittura, con la X
+per annullare, e vale sia per il testo che per un allegato. Cliccando una
+citazione la chat salta al messaggio originale, che lampeggia un istante.
+
+Sullo swipe ci sono tre dettagli che è facile sbagliare, e che il codice gestisce
+esplicitamente:
+
+- il gesto si prende solo i movimenti **orizzontali** (`touch-action: pan-y` più
+  un confronto fra le due componenti), altrimenti lo scorrimento della chat
+  diventerebbe inutilizzabile;
+- la barra di avanzamento di audio e video usa già il trascinamento
+  orizzontale, quindi quegli elementi sono esclusi dal gesto;
+- lo swipe che finisce su un'immagine o un bottone genera comunque un click, che
+  viene soppresso in fase di cattura.
+
+Durante il trascinamento la traslazione viene scritta direttamente sul DOM: un
+`setState` per ogni `pointermove` rirenderizzerebbe la bolla e il suo allegato
+sessanta volte al secondo.
 
 > **Nota:** la citazione **non** viene applicata ai template. Aprendo il
 > pannello dei template la striscia di risposta viene quindi scartata, invece di
