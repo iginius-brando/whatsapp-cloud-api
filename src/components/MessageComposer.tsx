@@ -88,7 +88,7 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
   }
 
   return (
-    <div className="border-t bg-wa-panel px-3 py-2.5">
+    <div className="shrink-0 border-t bg-wa-panel px-2 py-2.5 sm:px-3">
       {error && <p className="mb-1 px-1 text-xs text-red-600">{error}</p>}
 
       {!canSendFreeform && (
@@ -109,7 +109,7 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
 
       {canSendFreeform && (
         <form onSubmit={handleSubmit}>
-          <div className="flex items-end gap-2">
+          <div className="flex min-w-0 items-end gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => setShowTemplates((current) => !current)}
@@ -139,7 +139,7 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
               onChange={(e) => setText(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Scrivi un messaggio"
-              className="max-h-32 flex-1 resize-none rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-wa-teal thin-scroll"
+              className="max-h-32 min-w-0 flex-1 resize-none rounded-2xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-wa-teal thin-scroll sm:px-4"
             />
             <button
               type="submit"

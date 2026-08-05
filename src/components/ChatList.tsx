@@ -22,10 +22,10 @@ export default function ChatList({
   const { user, signOut } = useAuth();
 
   return (
-    <aside className="flex h-full w-full flex-col border-r bg-white md:w-[380px]">
+    <aside className="flex h-full min-h-0 w-full flex-col border-r bg-white md:w-[380px] md:max-w-[42vw]">
       {/* Header operatore */}
-      <div className="flex items-center justify-between bg-wa-panel px-4 py-3">
-        <div className="flex items-center gap-2 truncate">
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-wa-panel px-3 py-3 sm:px-4">
+        <div className="min-w-0 flex-1 flex items-center gap-2 truncate">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-wa-teal text-sm font-semibold text-white">
             {initialOf(user?.displayName || user?.email || undefined, "?")}
           </div>
@@ -53,7 +53,7 @@ export default function ChatList({
       <ConnectionChecks />
 
       {/* Elenco conversazioni */}
-      <div className="flex-1 overflow-y-auto thin-scroll">
+      <div className="min-h-0 flex-1 overflow-y-auto thin-scroll">
         {loading && (
           <p className="p-4 text-center text-sm text-gray-400">Caricamento…</p>
         )}

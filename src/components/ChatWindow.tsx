@@ -51,9 +51,9 @@ export default function ChatWindow({ conversation, onBack }: Props) {
   const canSendFreeform = isWithinServiceWindow(conversation.lastInboundAt);
 
   return (
-    <section className="flex h-full flex-1 flex-col">
+    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       {/* Header conversazione */}
-      <header className="flex items-center gap-3 border-b bg-wa-panel px-3 py-2.5">
+      <header className="flex min-w-0 items-center gap-3 border-b bg-wa-panel px-3 py-2.5">
         <button
           onClick={onBack}
           className="text-gray-500 hover:text-gray-800 md:hidden"
@@ -63,10 +63,10 @@ export default function ChatWindow({ conversation, onBack }: Props) {
             <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
           </svg>
         </button>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-wa-teal font-semibold text-white">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-wa-teal font-semibold text-white">
           {initialOf(conversation.name, conversation.waId)}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-gray-800">
             {conversation.name || formatPhone(conversation.waId)}
           </p>
@@ -77,7 +77,7 @@ export default function ChatWindow({ conversation, onBack }: Props) {
       </header>
 
       {/* Messaggi */}
-      <div className="chat-bg flex-1 overflow-y-auto py-3 thin-scroll">
+      <div className="chat-bg min-h-0 flex-1 overflow-y-auto py-3 thin-scroll">
         {loading && (
           <p className="text-center text-sm text-gray-500">Caricamento…</p>
         )}

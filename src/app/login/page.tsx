@@ -50,10 +50,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-wa-panel px-4">
-      <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-lg">
+    <div className="flex min-h-dvh items-center justify-center bg-wa-panel px-4 py-6 sm:px-6">
+      <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-lg sm:p-8">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-24 w-36 items-center justify-center overflow-hidden rounded-lg bg-white p-2 shadow-sm ring-1 ring-gray-200">
+          <div className="mx-auto mb-3 flex h-24 w-36 items-center justify-center overflow-hidden bg-white p-0">
             <Image
               src="https://cdn.wdgtsrc.com/86576be2592f4a9e17407e97420512d17735347/ineko.jpg"
               alt="Logo Ineko Sales Chat"
