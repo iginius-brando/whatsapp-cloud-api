@@ -151,6 +151,61 @@ export async function sendFlowMessage(
   });
 }
 
+export interface WhatsAppPhoneNumberCheck {
+  id: string;
+  displayPhoneNumber?: string;
+  verifiedName?: string;
+  qualityRating?: string;
+}
+
+export interface WhatsAppFlowCheck {
+  id: string;
+  name?: string;
+  status?: string;
+}
+
+async function getGraphResource<T>(path: string, fields: string): Promise<T> {
+  const token = requireEnv("WHATSAPP_ACCESS_TOKEN");
+  const res = await fetch(graphUrl(`${path}?fields=${fields}`), {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    const detail = data?.error?.message || JSON.stringify(data);
+    throw new Error(`Errore verifica WhatsApp (${res.status}): ${detail}`);
+  }
+
+  return data as T;
+}
+
+/** Verifica che token e Phone Number ID puntino a un numero WhatsApp raggiungibile. */
+export async function checkWhatsAppPhoneNumber(): Promise<WhatsAppPhoneNumberCheck> {
+  const phoneNumberId = requireEnv("WHATSAPP_PHONE_NUMBER_ID");
+
+  return getGraphResource<WhatsAppPhoneNumberCheck>(
+    phoneNumberId,
+    "id,display_phone_number,verified_name,quality_rating",
+  );
+}
+
+/** Verifica che il Flow configurato sia leggibile dall'app/token corrente. */
+export async function checkWhatsAppFlow(): Promise<WhatsAppFlowCheck> {
+  const flowId = requireEnv("WHATSAPP_FLOW_ID");
+
+  return getGraphResource<WhatsAppFlowCheck>(flowId, "id,name,status");
+}
+
+export function checkWhatsAppWebhookConfig(): { verifyToken: boolean; appSecret: boolean } {
+  return {
+    verifyToken: Boolean(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN),
+    appSecret: Boolean(process.env.WHATSAPP_APP_SECRET),
+  };
+}
+
 /** Segna un messaggio in ingresso come letto (doppia spunta blu lato cliente). */
 export async function markMessageAsRead(messageId: string): Promise<void> {
   const phoneNumberId = requireEnv("WHATSAPP_PHONE_NUMBER_ID");
