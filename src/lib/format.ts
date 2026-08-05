@@ -1,5 +1,27 @@
 /** Utility di formattazione per la UI della chat. */
 
+import { isMediaMessageType, mediaPlaceholder } from "@/lib/media";
+import type { MessageType } from "@/lib/types";
+
+interface PreviewSource {
+  type?: MessageType;
+  text?: string;
+  mediaCaption?: string;
+}
+
+/**
+ * Riassume un messaggio in una riga: serve alle citazioni e all'anteprima del
+ * composer. Sui media senza didascalia ripiega sull'etichetta del tipo.
+ */
+export function messagePreview(message: PreviewSource): string {
+  if (message.text) return message.text;
+  if (message.mediaCaption) return message.mediaCaption;
+  if (message.type && isMediaMessageType(message.type)) {
+    return mediaPlaceholder(message.type);
+  }
+  return "Messaggio";
+}
+
 const timeFmt = new Intl.DateTimeFormat("it-IT", {
   hour: "2-digit",
   minute: "2-digit",

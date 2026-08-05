@@ -21,7 +21,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST — invia un allegato (immagine, video, audio o documento) a un cliente.
- * Body: multipart/form-data con i campi `to`, `file` e, facoltativo, `caption`.
+ * Body: multipart/form-data con i campi `to`, `file` e, facoltativi, `caption`
+ * e `replyTo` (wamid del messaggio citato).
  * Richiede header Authorization: Bearer <Firebase ID token> dell'operatore.
  *
  * Il file viene prima caricato sul nodo /media della Cloud API e poi inviato
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
 
   const to = form.get("to")?.toString().trim();
   const caption = form.get("caption")?.toString().trim() || undefined;
+  const replyTo = form.get("replyTo")?.toString().trim() || undefined;
   const file = form.get("file");
 
   if (!to) {
@@ -108,6 +110,7 @@ export async function POST(request: Request) {
       mediaId,
       caption,
       filename,
+      replyToMessageId: replyTo,
     });
 
     // Meta scarta la didascalia su audio e sticker: non salviamo un testo che
@@ -122,6 +125,7 @@ export async function POST(request: Request) {
       text: deliveredCaption,
       mediaCaption: kind === "document" ? filename : mediaPlaceholder(kind),
       media: { id: mediaId, mimeType, filename, size: file.size },
+      replyToMessageId: replyTo,
       timestamp: Date.now(),
       status: "sent",
     });

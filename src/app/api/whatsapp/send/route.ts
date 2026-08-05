@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST — invia un messaggio di testo a un cliente.
- * Body: { to: string (waId), text: string }
+ * Body: { to: string (waId), text: string, replyTo?: string (wamid citato) }
  * Richiede header Authorization: Bearer <Firebase ID token> dell'operatore.
  */
 export async function POST(request: Request) {
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   }
 
   // 2. Valida input.
-  let body: { to?: string; text?: string };
+  let body: { to?: string; text?: string; replyTo?: string };
   try {
     body = await request.json();
   } catch {
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
 
   const to = body.to?.trim();
   const text = body.text?.trim();
+  const replyTo = body.replyTo?.trim() || undefined;
 
   if (!to || !text) {
     return NextResponse.json(
@@ -48,13 +49,14 @@ export async function POST(request: Request) {
 
   // 3. Invia via Cloud API e salva su Firestore.
   try {
-    const { messageId } = await sendTextMessage(to, text);
+    const { messageId } = await sendTextMessage(to, text, replyTo);
     const timestamp = Date.now();
 
     await saveOutboundMessage({
       waId: to,
       messageId,
       text,
+      replyToMessageId: replyTo,
       timestamp,
       status: "sent",
     });

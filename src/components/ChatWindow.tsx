@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { Conversation } from "@/lib/types";
+import { useEffect, useRef, useState } from "react";
+import type { ChatMessage, Conversation } from "@/lib/types";
 import { isWithinServiceWindow } from "@/lib/types";
 import { useMessages, markConversationRead } from "@/hooks/useChat";
 import { initialOf, formatPhone } from "@/lib/format";
@@ -17,14 +17,17 @@ export default function ChatWindow({ conversation, onBack }: Props) {
   const waId = conversation?.waId ?? null;
   const { messages, loading } = useMessages(waId);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
 
   // Scroll all'ultimo messaggio a ogni aggiornamento.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Azzera i non letti all'apertura della chat.
+  // Azzera i non letti all'apertura della chat e scarta la citazione in sospeso:
+  // appartiene alla conversazione che stiamo lasciando.
   useEffect(() => {
+    setReplyTo(null);
     if (waId) void markConversationRead(waId);
   }, [waId]);
 
@@ -82,13 +85,22 @@ export default function ChatWindow({ conversation, onBack }: Props) {
           <p className="text-center text-sm text-gray-500">Caricamento…</p>
         )}
         {messages.map((m) => (
-          <MessageBubble key={m.id} message={m} />
+          <MessageBubble
+            key={m.id}
+            message={m}
+            onReply={canSendFreeform ? setReplyTo : undefined}
+          />
         ))}
         <div ref={bottomRef} />
       </div>
 
       {/* Composer */}
-      <MessageComposer waId={conversation.waId} canSendFreeform={canSendFreeform} />
+      <MessageComposer
+        waId={conversation.waId}
+        canSendFreeform={canSendFreeform}
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+      />
     </section>
   );
 }

@@ -36,6 +36,8 @@ Meta Cloud API ──POST──►  /api/whatsapp/webhook  ──►  Firestore
   ID token Firebase) → Graph API → il messaggio viene salvato su Firestore.
 - **Allegati**: immagini, video, audio e documenti viaggiano in entrambe le
   direzioni (vedi [Allegati](#allegati-immagini-video-audio-e-documenti)).
+- **Risposte**: ogni messaggio può citarne uno precedente
+  (vedi [Risposte](#risposte-a-un-messaggio)).
 - **Stati**: le spunte (inviato ✓, consegnato/letto ✓✓) arrivano dagli eventi
   `statuses` del webhook.
 
@@ -79,6 +81,8 @@ conversations/{waId}
         mediaCaption            # etichetta di ripiego, es. "[immagine]"
         media                   # solo sui messaggi con allegato:
           { id, mimeType, filename, size, sha256, voice, animated }
+        replyTo                 # solo sulle risposte:
+          { id, direction, type, text }
 ```
 
 `waId` = numero del cliente in formato E.164 senza `+` (es. `393331234567`).
@@ -245,6 +249,56 @@ durante l'upload.
 In chat le immagini e gli audio si caricano da soli, i video partono al clic su
 *Riproduci* (fino a 16 MB: inutile scaricarli tutti all'apertura della
 conversazione) e i documenti si scaricano con un clic sulla scheda del file.
+
+---
+
+## Risposte a un messaggio
+
+Rispondere citando un messaggio precedente — quello che WhatsApp mostra come
+riquadro sopra la bolla — si fa aggiungendo l'oggetto `context` al payload:
+
+```jsonc
+{
+  "messaging_product": "whatsapp",
+  "to": "393331234567",
+  "context": { "message_id": "wamid.HBgM…" },  // il messaggio citato
+  "type": "text",
+  "text": { "body": "Certo, confermo per giovedì" }
+}
+```
+
+Vale per il testo e per tutti gli allegati: `sendTextMessage` e
+`sendMediaMessage` accettano il wamid da citare, e le route `send` e
+`send-media` lo prendono dai campi `replyTo`.
+
+In ricezione è il webhook a segnalarlo: quando il cliente risponde, il messaggio
+porta `context.id` con il wamid citato. Attenzione che `context` compare anche
+sui messaggi inoltrati o arrivati da un annuncio *click-to-WhatsApp*, dove però
+`id` manca: solo la presenza dell'id indica una risposta vera.
+
+### Cosa salviamo
+
+Accanto al messaggio finisce `replyTo: { id, direction, type, text }`, cioè il
+riferimento **più un'istantanea** del contenuto citato, risolta leggendo il
+messaggio originale da Firestore al momento della scrittura.
+
+La ridondanza è voluta: la chat carica gli ultimi 500 messaggi, quindi con il
+solo id una citazione a un messaggio più vecchio resterebbe vuota. Con
+l'istantanea la citazione è sempre leggibile; l'id serve in più a saltare
+all'originale quando è ancora in pagina. Costo: una lettura Firestore per ogni
+risposta.
+
+### Dal lato operatore
+
+Passando sopra una bolla compare l'icona *Rispondi* (su touch è sempre visibile,
+in sordina). Il messaggio scelto appare come striscia sopra la casella di
+scrittura, con la X per annullare, e vale sia per il testo che per un allegato.
+Cliccando una citazione la chat salta al messaggio originale, che lampeggia un
+istante.
+
+> **Nota:** la citazione **non** viene applicata ai template. Aprendo il
+> pannello dei template la striscia di risposta viene quindi scartata, invece di
+> sparire in silenzio al momento dell'invio.
 
 ---
 

@@ -14,6 +14,8 @@ import {
 interface Props {
   waId: string;
   file: File;
+  /** wamid del messaggio citato, quando l'allegato è una risposta. */
+  replyToMessageId?: string;
   onCancel: () => void;
   onSent: () => void;
 }
@@ -83,7 +85,13 @@ function KindIcon({ kind }: { kind: MediaKind }) {
 }
 
 /** Anteprima dell'allegato scelto, con didascalia e invio. */
-export default function AttachmentComposer({ waId, file, onCancel, onSent }: Props) {
+export default function AttachmentComposer({
+  waId,
+  file,
+  replyToMessageId,
+  onCancel,
+  onSent,
+}: Props) {
   const { user } = useAuth();
   const [caption, setCaption] = useState("");
   const [sending, setSending] = useState(false);
@@ -139,6 +147,7 @@ export default function AttachmentComposer({ waId, file, onCancel, onSent }: Pro
       form.append("to", waId);
       form.append("file", file, file.name);
       if (acceptsCaption && caption.trim()) form.append("caption", caption.trim());
+      if (replyToMessageId) form.append("replyTo", replyToMessageId);
 
       await uploadWithProgress(form, idToken, setProgress);
       onSent();

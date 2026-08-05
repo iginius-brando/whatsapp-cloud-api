@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -10,7 +11,9 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { messagePreview } from "@/lib/format";
 import { FILE_ACCEPT } from "@/lib/media";
+import type { ChatMessage } from "@/lib/types";
 import AttachmentComposer from "./AttachmentComposer";
 import TemplateMessagePanel from "./TemplateMessagePanel";
 
@@ -18,6 +21,9 @@ interface Props {
   waId: string;
   /** True se siamo entro la finestra di 24h e si possono inviare messaggi liberi. */
   canSendFreeform: boolean;
+  /** Messaggio che si sta citando, scelto con "Rispondi" su una bolla. */
+  replyTo?: ChatMessage | null;
+  onCancelReply?: () => void;
 }
 
 /** Voci del menu della graffetta: ognuna filtra il selettore file. */
@@ -42,7 +48,12 @@ const ATTACH_OPTIONS = [
   },
 ] as const;
 
-export default function MessageComposer({ waId, canSendFreeform }: Props) {
+export default function MessageComposer({
+  waId,
+  canSendFreeform,
+  replyTo,
+  onCancelReply,
+}: Props) {
   const { user } = useAuth();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -52,6 +63,12 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Chi clicca "Rispondi" vuole scrivere subito.
+  useEffect(() => {
+    if (replyTo && !attachment) textareaRef.current?.focus();
+  }, [replyTo, attachment]);
 
   async function send() {
     const body = text.trim();
@@ -67,7 +84,11 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ to: waId, text: body }),
+        body: JSON.stringify({
+          to: waId,
+          text: body,
+          ...(replyTo ? { replyTo: replyTo.id } : {}),
+        }),
       });
 
       if (!res.ok) {
@@ -75,6 +96,7 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
         throw new Error(data.error || "Invio non riuscito");
       }
       setText("");
+      onCancelReply?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Errore di invio");
     } finally {
@@ -176,13 +198,40 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
         </div>
       ) : null}
 
+      {canSendFreeform && replyTo && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border-l-4 border-wa-teal bg-white px-2.5 py-1.5">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-wa-teal">
+              Risposta {replyTo.direction === "out" ? "a un tuo messaggio" : "al cliente"}
+            </p>
+            <p className="truncate text-xs text-gray-600">
+              {messagePreview(replyTo)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            aria-label="Annulla la risposta"
+            className="shrink-0 text-gray-400 transition hover:text-gray-700"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+              <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {canSendFreeform && attachment && (
         <div className="mb-2">
           <AttachmentComposer
             waId={waId}
             file={attachment}
+            replyToMessageId={replyTo?.id}
             onCancel={() => setAttachment(null)}
-            onSent={() => setAttachment(null)}
+            onSent={() => {
+              setAttachment(null);
+              onCancelReply?.();
+            }}
           />
         </div>
       )}
@@ -199,7 +248,12 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
           <div className="flex min-w-0 items-end gap-1.5 sm:gap-2">
             <button
               type="button"
-              onClick={() => setShowTemplates((current) => !current)}
+              onClick={() => {
+                // I template non portano con sé la citazione: meglio scartarla
+                // subito che farla sparire in silenzio all'invio.
+                if (!showTemplates) onCancelReply?.();
+                setShowTemplates((current) => !current);
+              }}
               title="Invia un messaggio template"
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-black/5 hover:text-wa-teal disabled:opacity-50"
               aria-label="Invia messaggio template"
@@ -256,6 +310,7 @@ export default function MessageComposer({ waId, canSendFreeform }: Props) {
             </div>
 
             <textarea
+              ref={textareaRef}
               rows={1}
               value={text}
               onChange={(e) => setText(e.target.value)}

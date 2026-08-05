@@ -180,6 +180,9 @@ async function handleInboundMessage(
     text,
     mediaCaption,
     media,
+    // `context` compare anche sui messaggi inoltrati o arrivati da un annuncio:
+    // solo quando porta un id si tratta davvero di una risposta.
+    replyToMessageId: message.context?.id,
     timestamp,
     flowToken,
     flowResponse,
@@ -243,6 +246,15 @@ interface WhatsAppInboundMessage {
   audio?: WhatsAppMediaObject;
   document?: WhatsAppMediaObject;
   sticker?: WhatsAppMediaObject;
+  /** Presente quando il cliente risponde a un messaggio o lo inoltra. */
+  context?: {
+    /** Numero di chi ha scritto il messaggio citato. */
+    from?: string;
+    /** wamid del messaggio citato: c'è solo sulle risposte. */
+    id?: string;
+    forwarded?: boolean;
+    frequently_forwarded?: boolean;
+  };
   interactive?: {
     type?: string;
     /** Risposta a un Flow. */
