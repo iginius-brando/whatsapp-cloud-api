@@ -53,13 +53,13 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-wa-panel px-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-lg">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 h-20 w-20 overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-gray-200">
+          <div className="mx-auto mb-3 flex h-24 w-36 items-center justify-center overflow-hidden rounded-lg bg-white p-2 shadow-sm ring-1 ring-gray-200">
             <Image
               src="https://cdn.wdgtsrc.com/86576be2592f4a9e17407e97420512d17735347/ineko.jpg"
               alt="Logo Ineko Sales Chat"
-              width={80}
-              height={80}
-              className="h-full w-full object-cover"
+              width={144}
+              height={96}
+              className="h-full w-full object-contain"
               priority
             />
           </div>
