@@ -2,6 +2,8 @@
 
 import type { ChatMessage } from "@/lib/types";
 import { formatTime } from "@/lib/format";
+import { isMediaMessageType } from "@/lib/media";
+import MediaAttachment from "./MediaAttachment";
 
 /** Doppia spunta / stato di consegna per i messaggi in uscita. */
 function StatusTicks({ status }: { status?: ChatMessage["status"] }) {
@@ -46,19 +48,31 @@ function FlowResponse({ data }: { data: Record<string, unknown> }) {
 
 export default function MessageBubble({ message }: { message: ChatMessage }) {
   const isOut = message.direction === "out";
-  const content = message.text || message.mediaCaption || "";
+  const hasAttachment =
+    isMediaMessageType(message.type) && Boolean(message.media?.id);
+  // Sui media `mediaCaption` è solo l'etichetta di ripiego ("[immagine]"):
+  // ha senso mostrarla solo quando l'allegato non c'è.
+  const content =
+    message.text || (hasAttachment ? "" : message.mediaCaption) || "";
   const isFlowInvite = isOut && message.type === "interactive";
 
   return (
     <div className={`flex ${isOut ? "justify-end" : "justify-start"} px-2`}>
       <div
-        className={`relative my-0.5 max-w-[75%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm ${
+        className={`relative my-0.5 max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm sm:max-w-[75%] ${
           isOut ? "bg-wa-bubbleOut" : "bg-wa-bubbleIn"
         }`}
       >
-        <p className="whitespace-pre-wrap break-words pr-12 text-gray-800">
-          {content}
-        </p>
+        {hasAttachment && (
+          <div className="mb-1 mt-0.5 overflow-hidden">
+            <MediaAttachment message={message} />
+          </div>
+        )}
+        {content && (
+          <p className="whitespace-pre-wrap break-words pr-12 text-gray-800">
+            {content}
+          </p>
+        )}
         {isFlowInvite && (
           <p className="mt-1 border-t border-black/10 pt-1 text-center text-xs font-medium text-wa-teal">
             Modulo inviato

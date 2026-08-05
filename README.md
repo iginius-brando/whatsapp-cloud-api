@@ -34,6 +34,8 @@ Meta Cloud API ──POST──►  /api/whatsapp/webhook  ──►  Firestore
   i nuovi messaggi compaiono senza refresh.
 - **Invio**: l'operatore scrive dalla UI → `POST /api/whatsapp/send` (protetto da
   ID token Firebase) → Graph API → il messaggio viene salvato su Firestore.
+- **Allegati**: immagini, video, audio e documenti viaggiano in entrambe le
+  direzioni (vedi [Allegati](#allegati-immagini-video-audio-e-documenti)).
 - **Stati**: le spunte (inviato ✓, consegnato/letto ✓✓) arrivano dagli eventi
   `statuses` del webhook.
 
@@ -44,19 +46,25 @@ src/
 ├── app/
 │   ├── api/whatsapp/
 │   │   ├── webhook/route.ts   # GET verifica + POST eventi (messaggi/stati)
-│   │   └── send/route.ts      # invio testo (auth con ID token Firebase)
+│   │   ├── send/route.ts      # invio testo (auth con ID token Firebase)
+│   │   ├── send-media/route.ts     # invio allegati (multipart)
+│   │   └── media/[mediaId]/route.ts # proxy autenticato per scaricare i media
 │   ├── chat/page.tsx          # UI chat (protetta)
 │   ├── login/page.tsx         # login Google + email/password
 │   ├── layout.tsx / page.tsx  # root + redirect
 │   └── globals.css
-├── components/                # ChatList, ChatWindow, MessageBubble, Composer
+├── components/                # ChatList, ChatWindow, MessageBubble, Composer,
+│                              # MediaAttachment, AttachmentComposer
 ├── context/AuthContext.tsx    # stato autenticazione
-├── hooks/useChat.ts           # sottoscrizioni Firestore realtime
+├── hooks/
+│   ├── useChat.ts             # sottoscrizioni Firestore realtime
+│   └── useMedia.ts            # download allegati + cache degli object URL
 └── lib/
     ├── firebase/client.ts     # SDK client
     ├── firebase/admin.ts      # SDK admin (server)
     ├── firebase/firestore-admin.ts  # scritture messaggi/conversazioni
     ├── whatsapp.ts            # Graph API + verifica firma webhook
+    ├── media.ts               # tipi, limiti e MIME degli allegati
     └── types.ts / format.ts
 ```
 
@@ -68,9 +76,15 @@ conversations/{waId}
   unreadCount, lastInboundAt
   └── messages/{messageId}
         id, direction (in|out), type, text, status, timestamp
+        mediaCaption            # etichetta di ripiego, es. "[immagine]"
+        media                   # solo sui messaggi con allegato:
+          { id, mimeType, filename, size, sha256, voice, animated }
 ```
 
 `waId` = numero del cliente in formato E.164 senza `+` (es. `393331234567`).
+
+I byte degli allegati **non** finiscono su Firestore: si salva solo il `media.id`
+di WhatsApp e il file si scarica al volo dalla Graph API.
 
 ---
 
@@ -161,6 +175,76 @@ Pubblica infine le regole Firestore:
 ```bash
 firebase deploy --only firestore:rules,firestore:indexes
 ```
+
+---
+
+## Allegati (immagini, video, audio e documenti)
+
+Gli allegati funzionano in **entrambe le direzioni** e non richiedono alcuna
+configurazione aggiuntiva: bastano `WHATSAPP_ACCESS_TOKEN` e
+`WHATSAPP_PHONE_NUMBER_ID`, gli stessi già usati per il testo.
+
+```
+Invio      file dal composer ──► POST /api/whatsapp/send-media
+                                   ├─ upload su /{phone-number-id}/media  → media id
+                                   └─ invio del messaggio per id          → wamid
+
+Ricezione  webhook ──► salva { type, media.id, mimeType, filename } su Firestore
+           UI ──► GET /api/whatsapp/media/{id} ──► Graph API ──► byte al browser
+```
+
+### Perché serve un proxy per la lettura
+
+I media di Meta non sono pubblici. Il webhook consegna solo un `id`; per
+ottenere i byte bisogna prima risolverlo in un URL temporaneo (scade in pochi
+minuti) e poi scaricarlo passando l'access token. Quel token non può stare nel
+browser, quindi `GET /api/whatsapp/media/{mediaId}` fa da proxy: verifica l'ID
+token Firebase dell'operatore e inoltra lo stream. La UI lo chiama via `fetch` e
+converte la risposta in un object URL (`src/hooks/useMedia.ts`), che tiene in
+cache finché il componente è montato.
+
+Conseguenza pratica: **Meta conserva i media 30 giorni**. Dopo quel periodo la
+chat mostra ancora il messaggio, ma l'allegato non è più scaricabile. Se serve
+conservarli a lungo, il punto giusto dove intervenire è il webhook: copiare il
+file su Cloud Storage e salvarne il riferimento accanto a `media.id`.
+
+### Formati e limiti
+
+| Categoria | MIME accettati da Meta | Limite |
+|---|---|---|
+| Immagine | `image/jpeg`, `image/png` | 5 MB |
+| Video | `video/mp4`, `video/3gpp` (H.264 + AAC) | 16 MB |
+| Audio | `audio/aac`, `audio/amr`, `audio/mpeg`, `audio/mp4`, `audio/ogg` | 16 MB |
+| Documento | qualsiasi | 100 MB |
+| Sticker | `image/webp` (solo in ricezione) | 500 KB |
+
+Tutto ciò che non rientra nei formati di immagine/video/audio (webp, gif, wav,
+zip, …) viene inviato **come documento**: arriva comunque al cliente, invece di
+essere rifiutato dalla Graph API. Il composer lo segnala prima dell'invio.
+
+Un paio di dettagli imposti da Meta e riflessi nella UI:
+
+- **audio e sticker non accettano didascalia**: il campo non compare e, se
+  arrivasse comunque, il server la scarta invece di salvarne una mai recapitata.
+- **solo i documenti hanno un nome file** visibile al cliente.
+
+Il limite pratico di una singola richiesta è **30 MB**
+(`MAX_UPLOAD_BYTES` in `src/lib/media.ts`): Cloud Run, su cui gira App Hosting,
+rifiuta le richieste oltre i 32 MB, quindi i documenti molto grandi vanno
+bloccati prima con un messaggio chiaro anziché farsi troncare la richiesta.
+Alzarlo ha senso solo dietro a un'infrastruttura che regga richieste più grandi.
+
+### Dal lato operatore
+
+Nel composer la graffetta apre un menu con *Foto e video*, *Audio* e
+*Documento*; in alternativa si può **trascinare** un file sulla barra di scrittura
+o **incollare** uno screenshot dagli appunti. Prima dell'invio compaiono
+anteprima, dimensione ed eventuale campo didascalia, con barra di avanzamento
+durante l'upload.
+
+In chat le immagini e gli audio si caricano da soli, i video partono al clic su
+*Riproduci* (fino a 16 MB: inutile scaricarli tutti all'apertura della
+conversazione) e i documenti si scaricano con un clic sulla scheda del file.
 
 ---
 
@@ -287,10 +371,8 @@ collection `flowBookings`.
 
 ## Nota sulla finestra di 24 ore
 
-Per policy di Meta puoi inviare **testo libero** solo entro **24 ore**
-dall'ultimo messaggio del cliente (*customer service window*). Oltre quella
-finestra serve un **template approvato**. La UI rileva la finestra
-(`lastInboundAt`) e, se scaduta, disabilita la casella di scrittura mostrando un
-avviso. L'invio di template non è incluso in questo scaffold: si può aggiungere
-in `lib/whatsapp.ts` con una funzione `sendTemplateMessage` e un selettore di
-modelli nel composer.
+Per policy di Meta puoi inviare **messaggi liberi** — testo *e* allegati — solo
+entro **24 ore** dall'ultimo messaggio del cliente (*customer service window*).
+Oltre quella finestra serve un **template approvato**. La UI rileva la finestra
+(`lastInboundAt`) e, se scaduta, nasconde casella di scrittura e graffetta
+mostrando il selettore dei template (`TemplateMessagePanel`).

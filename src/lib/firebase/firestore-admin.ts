@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import type {
   CompanyPrivacySettings,
+  MessageMedia,
   MessageStatus,
   MessageType,
 } from "@/lib/types";
@@ -18,6 +19,17 @@ function messageRef(waId: string, messageId: string) {
   return conversationRef(waId).collection("messages").doc(messageId);
 }
 
+/**
+ * Firestore rifiuta i campi `undefined`: dell'allegato salviamo solo le
+ * proprietà davvero valorizzate.
+ */
+function cleanMedia(media?: MessageMedia): MessageMedia | undefined {
+  if (!media?.id) return undefined;
+
+  const entries = Object.entries(media).filter(([, value]) => value !== undefined);
+  return Object.fromEntries(entries) as MessageMedia;
+}
+
 interface InboundMessageInput {
   waId: string;
   profileName?: string;
@@ -25,6 +37,8 @@ interface InboundMessageInput {
   type: MessageType;
   text?: string;
   mediaCaption?: string;
+  /** Allegato ricevuto (image/video/audio/document/sticker). */
+  media?: MessageMedia;
   timestamp: number;
   /** Presenti solo sulle risposte a un Flow (nfm_reply). */
   flowToken?: string;
@@ -46,6 +60,7 @@ export async function saveInboundMessage(input: InboundMessageInput): Promise<vo
   } = input;
 
   const preview = text || mediaCaption || `[${type}]`;
+  const media = cleanMedia(input.media);
 
   const batch = adminDb.batch();
 
@@ -72,6 +87,7 @@ export async function saveInboundMessage(input: InboundMessageInput): Promise<vo
       type,
       ...(text ? { text } : {}),
       ...(mediaCaption ? { mediaCaption } : {}),
+      ...(media ? { media } : {}),
       ...(flowToken ? { flowToken } : {}),
       ...(flowResponse ? { flowResponse } : {}),
       timestamp,
@@ -86,7 +102,12 @@ export async function saveInboundMessage(input: InboundMessageInput): Promise<vo
 interface OutboundMessageInput {
   waId: string;
   messageId: string;
-  text: string;
+  /** Testo del messaggio o didascalia dell'allegato. Può mancare sui media. */
+  text?: string;
+  /** Etichetta di ripiego per l'anteprima quando non c'è testo, es. "[video]". */
+  mediaCaption?: string;
+  /** Allegato inviato (image/video/audio/document/sticker). */
+  media?: MessageMedia;
   timestamp: number;
   status?: MessageStatus;
   /** Default "text": vale "interactive" per i Flow o "template" per i modelli Meta. */
@@ -102,11 +123,15 @@ export async function saveOutboundMessage(
     waId,
     messageId,
     text,
+    mediaCaption,
     timestamp,
     status = "sent",
     type = "text",
     flowToken,
   } = input;
+
+  const preview = text || mediaCaption || `[${type}]`;
+  const media = cleanMedia(input.media);
 
   const batch = adminDb.batch();
 
@@ -114,7 +139,7 @@ export async function saveOutboundMessage(
     conversationRef(waId),
     {
       waId,
-      lastMessage: text,
+      lastMessage: preview,
       lastMessageAt: timestamp,
       lastMessageDirection: "out",
       unreadCount: 0,
@@ -129,7 +154,9 @@ export async function saveOutboundMessage(
       id: messageId,
       direction: "out",
       type,
-      text,
+      ...(text ? { text } : {}),
+      ...(mediaCaption ? { mediaCaption } : {}),
+      ...(media ? { media } : {}),
       status,
       ...(flowToken ? { flowToken } : {}),
       timestamp,

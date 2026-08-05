@@ -1,6 +1,7 @@
 import "server-only";
 
 import crypto from "crypto";
+import type { MediaKind } from "@/lib/media";
 
 const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || "v22.0";
 
@@ -112,6 +113,163 @@ export async function sendTextMessage(
     type: "text",
     text: { preview_url: true, body },
   });
+}
+
+export interface UploadedMedia {
+  /** ID del media su WhatsApp: resta valido 30 giorni. */
+  mediaId: string;
+}
+
+/**
+ * Carica un file su WhatsApp e restituisce il media id da usare nell'invio.
+ * L'upload è multipart e va sul nodo /{phone-number-id}/media.
+ */
+export async function uploadMedia(
+  file: Blob,
+  filename: string,
+  mimeType: string,
+): Promise<UploadedMedia> {
+  const phoneNumberId = requireEnv("WHATSAPP_PHONE_NUMBER_ID");
+  const token = requireEnv("WHATSAPP_ACCESS_TOKEN");
+
+  // Se abbiamo normalizzato il MIME (es. audio/x-m4a → audio/mp4) il Blob va
+  // riconfezionato: Meta legge il content-type della parte, non il campo "type".
+  const payload =
+    file.type === mimeType
+      ? file
+      : new Blob([await file.arrayBuffer()], { type: mimeType });
+
+  const form = new FormData();
+  form.append("messaging_product", "whatsapp");
+  form.append("type", mimeType);
+  form.append("file", payload, filename);
+
+  const res = await fetch(graphUrl(`${phoneNumberId}/media`), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const detail = data?.error?.message || JSON.stringify(data);
+    throw new Error(`Errore upload media WhatsApp (${res.status}): ${detail}`);
+  }
+
+  const mediaId = data?.id;
+  if (!mediaId) {
+    throw new Error("Risposta WhatsApp senza media id");
+  }
+
+  return { mediaId };
+}
+
+export interface SendMediaOptions {
+  kind: MediaKind;
+  /** ID restituito da `uploadMedia`. */
+  mediaId: string;
+  /** Didascalia: ignorata da Meta su audio e sticker. */
+  caption?: string;
+  /** Nome mostrato al cliente, solo per i documenti. */
+  filename?: string;
+}
+
+/** Invia un allegato già caricato (immagine, video, audio, documento, sticker). */
+export async function sendMediaMessage(
+  to: string,
+  options: SendMediaOptions,
+): Promise<SendTextResult> {
+  const { kind, mediaId, caption, filename } = options;
+
+  const media: Record<string, string> = { id: mediaId };
+  const acceptsCaption = kind !== "audio" && kind !== "sticker";
+  if (caption && acceptsCaption) media.caption = caption;
+  if (kind === "document" && filename) media.filename = filename;
+
+  return postMessage({ to, type: kind, [kind]: media });
+}
+
+export interface WhatsAppMediaMetadata {
+  id: string;
+  /** URL temporaneo (scade in pochi minuti) da scaricare con il token. */
+  url: string;
+  mimeType?: string;
+  fileSize?: number;
+  sha256?: string;
+}
+
+/** Risolve un media id nell'URL temporaneo di download. */
+export async function getMediaMetadata(
+  mediaId: string,
+): Promise<WhatsAppMediaMetadata> {
+  const token = requireEnv("WHATSAPP_ACCESS_TOKEN");
+
+  const res = await fetch(graphUrl(mediaId), {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const detail = data?.error?.message || JSON.stringify(data);
+    throw new Error(`Errore lettura media WhatsApp (${res.status}): ${detail}`);
+  }
+
+  if (!data?.url) {
+    throw new Error("Media non disponibile: WhatsApp li conserva 30 giorni");
+  }
+
+  return {
+    id: data.id ?? mediaId,
+    url: data.url,
+    mimeType: data.mime_type,
+    fileSize: typeof data.file_size === "number" ? data.file_size : undefined,
+    sha256: data.sha256,
+  };
+}
+
+export interface DownloadedMedia {
+  body: ReadableStream<Uint8Array> | null;
+  mimeType: string;
+  size?: number;
+}
+
+/**
+ * Scarica il contenuto di un media. Restituisce lo stream, così la route può
+ * inoltrarlo al browser senza tenere l'intero file in memoria.
+ */
+export async function downloadMedia(mediaId: string): Promise<DownloadedMedia> {
+  const token = requireEnv("WHATSAPP_ACCESS_TOKEN");
+  const metadata = await getMediaMetadata(mediaId);
+
+  const res = await fetch(metadata.url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      // Il CDN di Meta rifiuta le richieste senza user agent.
+      "User-Agent": "WhatsAppCloudChat/1.0",
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error(`Download media fallito (${res.status})`);
+  }
+
+  // La dimensione la prendiamo solo dall'header della risposta che stiamo
+  // inoltrando: quella dichiarata dalla Graph API potrebbe non combaciare con
+  // i byte effettivi, e un Content-Length sbagliato tronca il download.
+  const headerSize = Number(res.headers.get("content-length"));
+
+  return {
+    body: res.body,
+    mimeType:
+      res.headers.get("content-type")?.split(";")[0] ||
+      metadata.mimeType ||
+      "application/octet-stream",
+    size: Number.isFinite(headerSize) && headerSize > 0 ? headerSize : undefined,
+  };
 }
 
 export interface SendFlowOptions {
