@@ -90,6 +90,7 @@ conversations/{waId}
    un'app di tipo **Business** e aggiungi il prodotto **WhatsApp**.
 2. In *API Setup* prendi nota di:
    - **Phone number ID** → `WHATSAPP_PHONE_NUMBER_ID`
+   - **WhatsApp Business Account ID (WABA ID)** → `WHATSAPP_BUSINESS_ACCOUNT_ID`
    - **Access token** (per la produzione genera un token permanente da un
      System User) → `WHATSAPP_ACCESS_TOKEN`
 3. In *Impostazioni app → Base* copia l'**App secret** → `WHATSAPP_APP_SECRET`.
@@ -135,6 +136,11 @@ firebase apphosting:secrets:set whatsapp-phone-number-id
 firebase apphosting:secrets:set whatsapp-webhook-verify-token
 firebase apphosting:secrets:set whatsapp-app-secret
 ```
+
+Se abiliti l'invio dei template, configura anche `WHATSAPP_BUSINESS_ACCOUNT_ID`
+come variabile o secret App Hosting dopo aver creato/concesso l'accesso al
+relativo secret; non è dichiarato di default in `apphosting.yaml` per evitare
+rollout bloccati quando il secret non esiste ancora.
 
 Aggiorna in `apphosting.yaml` i valori `NEXT_PUBLIC_FIREBASE_*` con quelli della
 tua app Web, poi collega il repository ad App Hosting dalla console Firebase

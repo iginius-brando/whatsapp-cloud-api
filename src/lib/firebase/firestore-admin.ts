@@ -89,7 +89,7 @@ interface OutboundMessageInput {
   text: string;
   timestamp: number;
   status?: MessageStatus;
-  /** Default "text": vale "interactive" per l'invio di un Flow. */
+  /** Default "text": vale "interactive" per i Flow o "template" per i modelli Meta. */
   type?: MessageType;
   flowToken?: string;
 }
