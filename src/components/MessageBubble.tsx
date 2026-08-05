@@ -3,7 +3,17 @@
 import type { ChatMessage, MessageReply } from "@/lib/types";
 import { formatTime, messagePreview } from "@/lib/format";
 import { isMediaMessageType } from "@/lib/media";
+import { useSwipeToReply } from "@/hooks/useSwipeToReply";
 import MediaAttachment from "./MediaAttachment";
+
+/** Freccia di risposta, usata sia dal bottone desktop che dall'indicatore. */
+function ReplyIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" />
+    </svg>
+  );
+}
 
 /**
  * Porta in vista il messaggio citato. Se è più vecchio della finestra caricata
@@ -94,35 +104,46 @@ export default function MessageBubble({ message, onReply }: Props) {
     message.text || (hasAttachment ? "" : message.mediaCaption) || "";
   const isFlowInvite = isOut && message.type === "interactive";
 
+  const swipe = useSwipeToReply(onReply ? () => onReply(message) : undefined);
+
+  // Col dito si trascina la bolla (vedi useSwipeToReply); col mouse quel gesto
+  // serve a selezionare il testo, quindi su desktop resta il bottone.
   const replyButton = onReply ? (
     <button
       type="button"
       onClick={() => onReply(message)}
       title="Rispondi"
       aria-label="Rispondi a questo messaggio"
-      // Su desktop compare al passaggio del mouse; su touch resta sempre
-      // visibile in sordina, dove l'hover non esiste.
-      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-60 transition hover:bg-black/10 hover:text-wa-teal focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+      className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-0 transition hover:bg-black/10 hover:text-wa-teal focus-visible:opacity-100 group-hover:opacity-100 md:flex"
     >
-      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
-        <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" />
-      </svg>
+      <ReplyIcon className="h-4 w-4" />
     </button>
   ) : null;
 
   return (
     <div
       id={`msg-${message.id}`}
-      className={`group flex items-center gap-1 px-2 ${
+      {...swipe.handlers}
+      className={`group flex touch-pan-y items-center gap-1 px-2 ${
         isOut ? "justify-end" : "justify-start"
       }`}
     >
       {isOut && replyButton}
       <div
+        ref={swipe.contentRef}
         className={`relative my-0.5 max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm shadow-sm sm:max-w-[75%] ${
           isOut ? "bg-wa-bubbleOut" : "bg-wa-bubbleIn"
         }`}
       >
+        {onReply && (
+          <span
+            ref={swipe.indicatorRef}
+            aria-hidden
+            className="pointer-events-none absolute -left-9 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-black/10 text-gray-600 opacity-0"
+          >
+            <ReplyIcon className="h-4 w-4" />
+          </span>
+        )}
         {message.replyTo && <QuotedMessage reply={message.replyTo} />}
         {hasAttachment && (
           <div className="mb-1 mt-0.5 overflow-hidden">

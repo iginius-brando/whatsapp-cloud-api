@@ -80,7 +80,9 @@ export default function ChatWindow({ conversation, onBack }: Props) {
       </header>
 
       {/* Messaggi */}
-      <div className="chat-bg min-h-0 flex-1 overflow-y-auto py-3 thin-scroll">
+      {/* overflow-x-hidden: durante lo swipe la bolla esce dal bordo e non deve
+          comparire una barra di scorrimento orizzontale. */}
+      <div className="chat-bg min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-3 thin-scroll">
         {loading && (
           <p className="text-center text-sm text-gray-500">Caricamento…</p>
         )}
