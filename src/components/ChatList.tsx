@@ -4,13 +4,13 @@ import Link from "next/link";
 import type { Conversation } from "@/lib/types";
 import { formatListTimestamp, initialOf } from "@/lib/format";
 import { useAuth } from "@/context/AuthContext";
-import ConnectionChecks from "./ConnectionChecks";
 
 interface Props {
   conversations: Conversation[];
   loading: boolean;
   selectedWaId: string | null;
   onSelect: (waId: string) => void;
+  onOpenChecks: () => void;
 }
 
 export default function ChatList({
@@ -18,6 +18,7 @@ export default function ChatList({
   loading,
   selectedWaId,
   onSelect,
+  onOpenChecks,
 }: Props) {
   const { user, signOut } = useAuth();
 
@@ -34,6 +35,19 @@ export default function ChatList({
           </span>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onOpenChecks}
+            className="text-xs font-medium text-wa-teal hover:text-wa-dark"
+          >
+            Check
+          </button>
+          <Link
+            href="/users"
+            className="text-xs font-medium text-wa-teal hover:text-wa-dark"
+          >
+            Utenti
+          </Link>
           <Link
             href="/guide"
             className="text-xs font-medium text-wa-teal hover:text-wa-dark"
@@ -50,7 +64,6 @@ export default function ChatList({
         </div>
       </div>
 
-      <ConnectionChecks />
 
       {/* Elenco conversazioni */}
       <div className="min-h-0 flex-1 overflow-y-auto thin-scroll">
