@@ -74,7 +74,7 @@ export default function ConnectionChecks() {
   }
 
   return (
-    <section className="border-b border-gray-100 bg-white p-3">
+    <section className="bg-white p-5">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-gray-800">
@@ -98,7 +98,7 @@ export default function ConnectionChecks() {
               type="button"
               onClick={() => void runCheck(check.key)}
               disabled={isLoading}
-              className="w-full rounded-lg border border-gray-200 p-2 text-left transition hover:border-wa-teal hover:bg-wa-panel disabled:cursor-wait disabled:opacity-70"
+              className="w-full rounded-xl border border-gray-200 p-3 text-left shadow-sm transition hover:border-wa-teal hover:bg-wa-panel disabled:cursor-wait disabled:opacity-70"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-gray-700">

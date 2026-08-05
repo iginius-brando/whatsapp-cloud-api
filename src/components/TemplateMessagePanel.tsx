@@ -278,8 +278,13 @@ export default function TemplateMessagePanel({ waId, onSent }: Props) {
         type="button"
         onClick={() => void sendTemplate()}
         disabled={!selectedTemplate || sending || loading}
-        className="w-full rounded-lg bg-wa-teal px-3 py-2 text-sm font-medium text-white transition hover:bg-wa-dark disabled:opacity-50"
+        className="group flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-wa-teal to-wa-green px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-wa-teal/20 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-wa-teal/25 disabled:translate-y-0 disabled:opacity-50 disabled:shadow-none"
       >
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 transition group-hover:bg-white/30">
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          </svg>
+        </span>
         {sending ? "Invio template…" : "Invia template"}
       </button>
     </div>

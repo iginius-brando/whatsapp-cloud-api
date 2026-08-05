@@ -6,12 +6,14 @@ import { useAuth } from "@/context/AuthContext";
 import { useConversations } from "@/hooks/useChat";
 import ChatList from "@/components/ChatList";
 import ChatWindow from "@/components/ChatWindow";
+import ConnectionChecks from "@/components/ConnectionChecks";
 
 export default function ChatPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { conversations, loading } = useConversations();
   const [selectedWaId, setSelectedWaId] = useState<string | null>(null);
+  const [showChecks, setShowChecks] = useState(false);
 
   // Protezione rotta: senza login torna alla pagina di accesso.
   useEffect(() => {
@@ -40,6 +42,7 @@ export default function ChatPage() {
           loading={loading}
           selectedWaId={selectedWaId}
           onSelect={setSelectedWaId}
+          onOpenChecks={() => setShowChecks(true)}
         />
       </div>
 
@@ -51,6 +54,28 @@ export default function ChatPage() {
           onBack={() => setSelectedWaId(null)}
         />
       </div>
+
+      {showChecks && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">Check collegamenti</h2>
+                <p className="text-sm text-gray-500">Verifica numero WhatsApp, webhook e flow quando serve.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChecks(false)}
+                className="rounded-full p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Chiudi check collegamenti"
+              >
+                ✕
+              </button>
+            </div>
+            <ConnectionChecks />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

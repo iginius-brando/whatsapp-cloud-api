@@ -11,9 +11,6 @@ import {
   onAuthStateChanged,
   signOut as fbSignOut,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
   type User,
 } from "firebase/auth";
 import { getClientAuth } from "@/lib/firebase/client";
@@ -21,15 +18,12 @@ import { getClientAuth } from "@/lib/firebase/client";
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  registerWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const googleProvider = new GoogleAuthProvider();
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -46,14 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     user,
     loading,
-    signInWithGoogle: async () => {
-      await signInWithPopup(getClientAuth(), googleProvider);
-    },
     signInWithEmail: async (email, password) => {
       await signInWithEmailAndPassword(getClientAuth(), email, password);
-    },
-    registerWithEmail: async (email, password) => {
-      await createUserWithEmailAndPassword(getClientAuth(), email, password);
     },
     signOut: async () => {
       await fbSignOut(getClientAuth());
