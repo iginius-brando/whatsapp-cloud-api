@@ -16,6 +16,52 @@ function graphUrl(path: string): string {
   return `https://graph.facebook.com/${GRAPH_VERSION}/${path}`;
 }
 
+export type WhatsAppTemplateComponentType =
+  | "HEADER"
+  | "BODY"
+  | "FOOTER"
+  | "BUTTONS";
+
+export interface WhatsAppTemplateButton {
+  type?: string;
+  text?: string;
+  url?: string;
+}
+
+export interface WhatsAppTemplateComponent {
+  type: WhatsAppTemplateComponentType;
+  format?: string;
+  text?: string;
+  buttons?: WhatsAppTemplateButton[];
+}
+
+export interface WhatsAppMessageTemplate {
+  id: string;
+  name: string;
+  language: string;
+  status: string;
+  category?: string;
+  components?: WhatsAppTemplateComponent[];
+}
+
+export interface SendTemplateComponentParameter {
+  type: "text";
+  text: string;
+}
+
+export interface SendTemplateComponent {
+  type: "header" | "body" | "button";
+  sub_type?: "url" | "quick_reply" | "copy_code";
+  index?: string;
+  parameters: SendTemplateComponentParameter[];
+}
+
+export interface SendTemplateOptions {
+  name: string;
+  language: string;
+  components?: SendTemplateComponent[];
+}
+
 export interface SendTextResult {
   /** wamid del messaggio inviato. */
   messageId: string;
@@ -147,6 +193,34 @@ export async function sendFlowMessage(
             : {}),
         },
       },
+    },
+  });
+}
+
+export async function listWhatsAppMessageTemplates(): Promise<WhatsAppMessageTemplate[]> {
+  const businessAccountId = requireEnv("WHATSAPP_BUSINESS_ACCOUNT_ID");
+
+  const data = await getGraphResource<{ data?: WhatsAppMessageTemplate[] }>(
+    `${businessAccountId}/message_templates`,
+    "id,name,language,status,category,components",
+  );
+
+  return (data.data ?? [])
+    .filter((template) => template.status === "APPROVED")
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function sendTemplateMessage(
+  to: string,
+  options: SendTemplateOptions,
+): Promise<SendTextResult> {
+  return postMessage({
+    to,
+    type: "template",
+    template: {
+      name: options.name,
+      language: { code: options.language },
+      ...(options.components?.length ? { components: options.components } : {}),
     },
   });
 }
