@@ -133,15 +133,23 @@ Crea i segreti WhatsApp in Cloud Secret Manager:
 ```bash
 firebase apphosting:secrets:set whatsapp-access-token
 firebase apphosting:secrets:set whatsapp-phone-number-id
-firebase apphosting:secrets:set whatsapp-business-account-id
+firebase apphosting:secrets:set WHATSAPP_BUSINESS_ACCOUNT_ID
 firebase apphosting:secrets:set whatsapp-webhook-verify-token
 firebase apphosting:secrets:set whatsapp-app-secret
 ```
 
-Se abiliti l'invio dei template, configura anche `WHATSAPP_BUSINESS_ACCOUNT_ID`
-come variabile o secret App Hosting dopo aver creato/concesso l'accesso al
-relativo secret; non è dichiarato di default in `apphosting.yaml` per evitare
-rollout bloccati quando il secret non esiste ancora.
+L'invio dei template richiede `WHATSAPP_BUSINESS_ACCOUNT_ID`, dichiarato in
+`apphosting.yaml` come secret **`WHATSAPP_BUSINESS_ACCOUNT_ID`** (maiuscolo con
+underscore, a differenza degli altri che usano il kebab-case). Il nome nel campo
+`secret:` deve combaciare esattamente con quello in Cloud Secret Manager,
+altrimenti il rollout fallisce nello step `preparer` con
+`fah/misconfigured-secret` prima ancora della build.
+
+Ricorda di concedere l'accesso al backend dopo aver creato un secret:
+
+```bash
+firebase apphosting:secrets:grantaccess WHATSAPP_BUSINESS_ACCOUNT_ID --backend <nome-backend>
+```
 
 Aggiorna in `apphosting.yaml` i valori `NEXT_PUBLIC_FIREBASE_*` con quelli della
 tua app Web, poi collega il repository ad App Hosting dalla console Firebase

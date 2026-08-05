@@ -39,7 +39,7 @@ env:
   # Crea i segreti con:
   #   firebase apphosting:secrets:set whatsapp-access-token
   #   firebase apphosting:secrets:set whatsapp-phone-number-id
-  #   firebase apphosting:secrets:set whatsapp-business-account-id
+  #   firebase apphosting:secrets:set WHATSAPP_BUSINESS_ACCOUNT_ID
   #   firebase apphosting:secrets:set whatsapp-webhook-verify-token
   #   firebase apphosting:secrets:set whatsapp-app-secret
   - variable: WHATSAPP_ACCESS_TOKEN
@@ -48,8 +48,10 @@ env:
   - variable: WHATSAPP_PHONE_NUMBER_ID
     secret: whatsapp-phone-number-id
     availability: [RUNTIME]
+  # Nota: questo secret in Secret Manager si chiama WHATSAPP_BUSINESS_ACCOUNT_ID
+  # (maiuscolo con underscore), non whatsapp-business-account-id.
   - variable: WHATSAPP_BUSINESS_ACCOUNT_ID
-    secret: whatsapp-business-account-id
+    secret: WHATSAPP_BUSINESS_ACCOUNT_ID
     availability: [RUNTIME]
   - variable: WHATSAPP_WEBHOOK_VERIFY_TOKEN
     secret: whatsapp-webhook-verify-token
