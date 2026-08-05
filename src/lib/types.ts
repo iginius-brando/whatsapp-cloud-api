@@ -18,6 +18,8 @@ export type MessageType =
   | "sticker"
   | "location"
   | "contacts"
+  /** Messaggio template approvato Meta. */
+  | "template"
   /** Messaggio interattivo: invio di un Flow o risposta a un Flow. */
   | "interactive"
   | "unsupported";
