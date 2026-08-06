@@ -2,20 +2,7 @@ import "server-only";
 
 import crypto from "crypto";
 import type { MediaKind } from "@/lib/media";
-
-const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || "v22.0";
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Variabile d'ambiente mancante: ${name}`);
-  }
-  return value;
-}
-
-function graphUrl(path: string): string {
-  return `https://graph.facebook.com/${GRAPH_VERSION}/${path}`;
-}
+import { graphUrl, requireEnv } from "@/lib/meta/graph";
 
 export type WhatsAppTemplateComponentType =
   | "HEADER"

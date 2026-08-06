@@ -40,6 +40,9 @@ Meta Cloud API ──POST──►  /api/whatsapp/webhook  ──►  Firestore
   (vedi [Risposte](#risposte-a-un-messaggio)).
 - **Stati**: le spunte (inviato ✓, consegnato/letto ✓✓) arrivano dagli eventi
   `statuses` del webhook.
+- **Onboarding clienti**: il pannello `/onboarding` collega la WABA di un cliente
+  con l'Embedded Signup di Meta
+  (vedi [Tech provider](#tech-provider-embedded-signup)).
 
 ## Struttura del progetto
 
@@ -50,8 +53,10 @@ src/
 │   │   ├── webhook/route.ts   # GET verifica + POST eventi (messaggi/stati)
 │   │   ├── send/route.ts      # invio testo (auth con ID token Firebase)
 │   │   ├── send-media/route.ts     # invio allegati (multipart)
+│   │   ├── embedded-signup/route.ts # onboarding clienti (solo admin)
 │   │   └── media/[mediaId]/route.ts # proxy autenticato per scaricare i media
 │   ├── chat/page.tsx          # UI chat (protetta)
+│   ├── onboarding/page.tsx    # pannello Embedded Signup (solo admin)
 │   ├── login/page.tsx         # login Google + email/password
 │   ├── layout.tsx / page.tsx  # root + redirect
 │   └── globals.css
@@ -65,8 +70,11 @@ src/
 └── lib/
     ├── firebase/client.ts     # SDK client
     ├── firebase/admin.ts      # SDK admin (server)
-    ├── firebase/firestore-admin.ts  # scritture messaggi/conversazioni
-    ├── whatsapp.ts            # Graph API + verifica firma webhook
+    ├── firebase/firestore-admin.ts  # scritture messaggi/conversazioni/tenant
+    ├── meta/graph.ts          # helper comuni Graph API
+    ├── meta/embedded-signup.ts # onboarding clienti (tech provider)
+    ├── meta/token-vault.ts    # cifratura a riposo dei token dei clienti
+    ├── whatsapp.ts            # Cloud API + verifica firma webhook
     ├── media.ts               # tipi, limiti e MIME degli allegati
     └── types.ts / format.ts
 ```
@@ -84,6 +92,12 @@ conversations/{waId}
           { id, mimeType, filename, size, sha256, voice, animated }
         replyTo                 # solo sulle risposte:
           { id, direction, type, text }
+
+whatsappTenants/{wabaId}        # clienti onboardati via Embedded Signup
+  wabaId, businessId, name, currency, timezoneId, accountReviewStatus,
+  phoneNumbers[], defaultPhoneNumberId, grantedScopes[], tokenExpiresAt,
+  subscribed, registered, status, steps[], connectedByUid, connectedByEmail
+  accessToken, tokenEncrypted, registrationPin   # solo lato server
 ```
 
 `waId` = numero del cliente in formato E.164 senza `+` (es. `393331234567`).
@@ -447,6 +461,123 @@ collection `flowBookings`.
 > **Nota:** il messaggio interattivo che apre un Flow è soggetto alla finestra di
 > 24 ore. Per riaprire una conversazione scaduta serve un template approvato con
 > bottone di tipo `flow`.
+
+---
+
+## Tech provider: Embedded Signup
+
+L'Embedded Signup è il flusso con cui un cliente collega **il proprio** numero
+WhatsApp alla nostra app senza uscire dal nostro pannello: è il primo mattone
+per diventare *tech provider* di Meta, cioè per gestire le WABA di terzi invece
+del solo numero aziendale.
+
+```
+Admin apre /onboarding ──► bottone "Collega un cliente"
+        │
+        ▼
+FB.login (config_id, response_type=code) ──► popup Meta: il cliente sceglie
+        │                                     business, WABA e numero
+        ├── postMessage WA_EMBEDDED_SIGNUP ──► waba_id + phone_number_id
+        └── callback ──► code (monouso)
+                 │
+                 ▼
+POST /api/whatsapp/embedded-signup   (solo admin)
+   1. code ─► GET /oauth/access_token          → token DEL CLIENTE
+   2. GET /debug_token                          → permessi + WABA condivise
+   3. POST /{waba-id}/subscribed_apps           → webhook della WABA a noi
+   4. POST /{phone-number-id}/register (+ PIN)  → numero attivo su Cloud API
+   5. GET /{waba-id} e /{waba-id}/phone_numbers → dati da mostrare
+                 │
+                 ▼
+        Firestore: whatsappTenants/{wabaId}
+```
+
+Lo scambio del `code` è l'unico passo bloccante: senza token non c'è nulla da
+configurare. I passi successivi vengono tentati tutti e riportati **uno per
+uno** nella UI, perché il `code` è monouso — se il primo errore facesse fallire
+tutta la richiesta, l'unico modo per riprovare sarebbe rifare il signup da capo
+con il cliente davanti. Un numero da verificare o un permesso non concesso
+lasciano quindi il cliente in stato *Da completare*, non lo perdono.
+
+### Prerequisiti sul lato Meta
+
+1. App di tipo **Business** con il prodotto WhatsApp e la **verifica business**
+   completata.
+2. **Accesso avanzato** (App Review) ai permessi `whatsapp_business_management`,
+   `whatsapp_business_messaging` e `business_management`. Con il solo accesso
+   standard il flusso funziona unicamente con gli utenti di test dell'app.
+3. Una configurazione di **Facebook Login for Business** con variante *Embedded
+   Signup*: il suo ID è il `config_id` passato a `FB.login`.
+4. Il dominio dell'app fra quelli consentiti nelle impostazioni del Facebook
+   Login (in locale serve un tunnel HTTPS, non `http://localhost`).
+5. Webhook configurato **a livello di app** (Meta for Developers → WhatsApp →
+   Configuration), non sul singolo numero: l'iscrizione per cliente la fa il
+   passo `subscribed_apps` di questo pannello.
+
+### Variabili d'ambiente
+
+| Variabile | A cosa serve |
+|---|---|
+| `NEXT_PUBLIC_META_APP_ID` | App ID, usato dall'SDK JS nel browser |
+| `META_APP_SECRET` | Scambio del `code`; se manca si usa `WHATSAPP_APP_SECRET` |
+| `NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID` | `config_id` della configurazione di login |
+| `NEXT_PUBLIC_META_GRAPH_API_VERSION` | Versione dell'SDK JS (default `v22.0`) |
+| `NEXT_PUBLIC_META_EMBEDDED_SIGNUP_SESSION_INFO_VERSION` | `3` per le configurazioni attuali, `none` per le v4 |
+| `NEXT_PUBLIC_META_EMBEDDED_SIGNUP_FEATURE_TYPE` | `whatsapp_business_app_onboarding` solo per la coesistenza |
+| `WHATSAPP_TENANT_TOKEN_SECRET` | Passphrase per cifrare i token dei clienti a riposo |
+
+Le `NEXT_PUBLIC_*` finiscono nel bundle del browser, quindi in `apphosting.yaml`
+vanno dichiarate con `availability: [BUILD, RUNTIME]`. Come per `WHATSAPP_FLOW_ID`,
+App Hosting rifiuta un `value` vuoto: finché non hai gli ID veri lascia le voci
+commentate. Senza App ID, App secret e Configuration ID il bottone di onboarding
+resta disattivato e lo spiega a schermo; il check *Embedded Signup* nella chat
+dice quale dei tre manca.
+
+> **Versioni del flusso.** L'Embedded Signup v2 va in dismissione il **15 ottobre
+> 2026**. Nelle configurazioni v4 le scelte del flusso stanno tutte nella
+> configurazione di Facebook Login e l'oggetto `extras` va vuoto: per questo
+> `sessionInfoVersion` si può disattivare con il valore `none` invece di
+> modificare il codice.
+
+### Sicurezza dei token dei clienti
+
+Il token ottenuto dallo scambio permette di inviare messaggi a nome del cliente,
+quindi:
+
+- non esce mai dal server: la POST restituisce solo l'esito dei passi, e
+  `listWhatsAppTenants()` scarta `accessToken` e `registrationPin` prima di
+  rispondere;
+- la collection `whatsappTenants` è negata a qualunque client dalle regole
+  Firestore (ci si arriva solo con l'Admin SDK);
+- con `WHATSAPP_TENANT_TOKEN_SECRET` impostato il token è cifrato con AES-256-GCM
+  (`src/lib/meta/token-vault.ts`) e il documento resta marcato
+  `tokenEncrypted: true`. Senza la chiave l'onboarding funziona lo stesso, ma il
+  pannello segnala che i token sono in chiaro.
+
+Anche il **PIN** della verifica in due passaggi viene salvato: serve a ogni nuova
+registrazione dello stesso numero, e senza di esso il numero va sbloccato dal
+cliente. Viene mostrato una volta sola all'admin che ha completato il flusso.
+
+### Cosa manca per essere davvero multi-tenant
+
+L'onboarding è completo, l'inbox no. Oggi webhook e invio usano il numero unico
+letto dalle variabili d'ambiente:
+
+- **Webhook**: `POST /api/whatsapp/webhook` salva tutto in `conversations/{waId}`
+  senza guardare `entry[].id` (la WABA) né `value.metadata.phone_number_id`.
+  Appena un cliente è collegato, i suoi messaggi finiscono nella stessa inbox.
+  Il punto giusto dove intervenire è la chiave delle conversazioni, che va estesa
+  con la WABA o il numero di destinazione.
+- **Invio**: `src/lib/whatsapp.ts` legge `WHATSAPP_PHONE_NUMBER_ID` e
+  `WHATSAPP_ACCESS_TOKEN`. Per inviare a nome di un cliente vanno passati il suo
+  numero e il suo token: `getWhatsAppTenantAccessToken(wabaId)` è già lì per
+  questo.
+- **Token**: quelli dei clienti possono avere scadenza (`tokenExpiresAt`); con le
+  configurazioni che rilasciano token permanenti il campo vale `0`. Un controllo
+  periodico delle scadenze non c'è ancora.
+
+Finché quei tre punti non sono coperti, conviene collegare clienti solo in un
+ambiente di prova.
 
 ---
 
