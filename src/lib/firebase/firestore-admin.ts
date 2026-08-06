@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import type {
   CompanyPrivacySettings,
+  SecuritySettings,
   MessageMedia,
   MessageReply,
   MessageStatus,
@@ -14,6 +15,70 @@ const CONVERSATIONS = "conversations";
 
 function conversationRef(waId: string) {
   return adminDb.collection(CONVERSATIONS).doc(waId);
+}
+
+const SECURITY_SETTINGS_ID = "security";
+
+const defaultSecuritySettings: SecuritySettings = {
+  twoFactorEnabled: false,
+  accessLogsEnabled: false,
+  adminAuditEnabled: false,
+};
+
+export async function getSecuritySettings(): Promise<SecuritySettings> {
+  const snap = await adminDb.collection("settings").doc(SECURITY_SETTINGS_ID).get();
+  const data = snap.data();
+  return {
+    twoFactorEnabled: data?.twoFactorEnabled === true,
+    accessLogsEnabled: data?.accessLogsEnabled === true,
+    adminAuditEnabled: data?.adminAuditEnabled === true,
+    updatedAt: data?.updatedAt ?? null,
+  };
+}
+
+export async function saveSecuritySettings(
+  settings: SecuritySettings,
+  actor: { uid: string; email?: string },
+): Promise<void> {
+  const current = await getSecuritySettings().catch(() => defaultSecuritySettings);
+  const batch = adminDb.batch();
+  batch.set(
+    adminDb.collection("settings").doc(SECURITY_SETTINGS_ID),
+    { ...settings, updatedAt: FieldValue.serverTimestamp() },
+    { merge: true },
+  );
+
+  if (settings.adminAuditEnabled || current.adminAuditEnabled) {
+    batch.create(adminDb.collection("adminAuditLogs").doc(), {
+      action: "Impostazioni di sicurezza aggiornate",
+      actorUid: actor.uid,
+      actorEmail: actor.email ?? "",
+      changes: {
+        twoFactorEnabled: settings.twoFactorEnabled,
+        accessLogsEnabled: settings.accessLogsEnabled,
+        adminAuditEnabled: settings.adminAuditEnabled,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+  await batch.commit();
+}
+
+export async function getAdminAuditLogs(limit = 20) {
+  const snapshot = await adminDb
+    .collection("adminAuditLogs")
+    .orderBy("createdAt", "desc")
+    .limit(limit)
+    .get();
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      action: typeof data.action === "string" ? data.action : "Attività amministrativa",
+      actorEmail: typeof data.actorEmail === "string" ? data.actorEmail : "",
+      createdAt: data.createdAt?.toDate?.().toISOString() ?? null,
+    };
+  });
 }
 
 function messageRef(waId: string, messageId: string) {
