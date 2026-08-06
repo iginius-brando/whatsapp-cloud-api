@@ -114,3 +114,10 @@ export interface CompanyPrivacySettings {
   legalRetentionPeriod?: string;
   updatedAt?: Timestamp | null;
 }
+
+export interface SecuritySettings {
+  twoFactorEnabled: boolean;
+  accessLogsEnabled: boolean;
+  adminAuditEnabled: boolean;
+  updatedAt?: Timestamp | null;
+}
