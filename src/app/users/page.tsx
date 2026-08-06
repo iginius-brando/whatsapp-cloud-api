@@ -116,9 +116,9 @@ export default function UsersPage() {
         <section className="grid gap-5 lg:grid-cols-[360px_1fr]">
           <form onSubmit={createUser} className="space-y-3 rounded-2xl bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-800">Crea nuovo utente</h2>
-            <input type="email" required placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-wa-teal" />
-            <input placeholder="Nome visualizzato" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-wa-teal" />
-            <input type="password" required minLength={6} placeholder="Password temporanea" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-wa-teal" />
+            <input type="email" required autoComplete="off" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-wa-teal" />
+            <input autoComplete="off" placeholder="Nome visualizzato" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-wa-teal" />
+            <input type="password" required minLength={6} autoComplete="new-password" placeholder="Password temporanea" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-wa-teal" />
             <label className="flex items-center gap-2 rounded-xl bg-wa-panel/70 px-3 py-2 text-sm text-gray-700">
               <input type="checkbox" checked={makeAdmin} onChange={(e) => setMakeAdmin(e.target.checked)} className="h-4 w-4 accent-wa-teal" />
               Rendi questo utente admin

@@ -14,10 +14,50 @@ async function verifyAdmin(request: Request) {
 
   try {
     const decoded = await adminAuth.verifyIdToken(idToken);
-    if (decoded.admin !== true) {
-      return { error: "Solo un admin può gestire gli utenti", status: 403 } as const;
+    if (decoded.admin === true) {
+      return { decoded } as const;
     }
-    return { decoded } as const;
+
+    // Custom claims are cached in the ID token until Firebase refreshes it.
+    // Check the current user record as well, so a newly promoted admin can use
+    // this page immediately without signing out and back in.
+    const currentUser = await adminAuth.getUser(decoded.uid);
+    if (currentUser.customClaims?.admin === true) {
+      return { decoded } as const;
+    }
+
+    // Existing installations may already have their first operator but no
+    // custom admin claim (the claim was introduced with user management). If
+    // no admin exists yet, promote only the oldest enabled account. This gives
+    // the installation a deterministic, one-time bootstrap without opening
+    // user creation to every authenticated operator.
+    let pageToken: string | undefined;
+    let hasAdmin = false;
+    let oldestEnabledUser: { uid: string; createdAt: number } | undefined;
+
+    do {
+      const page = await adminAuth.listUsers(1_000, pageToken);
+      for (const user of page.users) {
+        if (user.customClaims?.admin === true) hasAdmin = true;
+        if (!user.disabled) {
+          const createdAt = Date.parse(user.metadata.creationTime);
+          if (!oldestEnabledUser || createdAt < oldestEnabledUser.createdAt) {
+            oldestEnabledUser = { uid: user.uid, createdAt };
+          }
+        }
+      }
+      pageToken = page.pageToken;
+    } while (pageToken);
+
+    if (!hasAdmin && oldestEnabledUser?.uid === decoded.uid) {
+      await adminAuth.setCustomUserClaims(decoded.uid, {
+        ...currentUser.customClaims,
+        admin: true,
+      });
+      return { decoded } as const;
+    }
+
+    return { error: "Solo un admin può gestire gli utenti", status: 403 } as const;
   } catch {
     return { error: "Token non valido", status: 401 } as const;
   }
