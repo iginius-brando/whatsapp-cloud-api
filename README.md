@@ -135,6 +135,11 @@ npm run dev                        # http://localhost:3000
 Per l'Admin SDK in locale scarica una chiave service account da Firebase e
 imposta `GOOGLE_APPLICATION_CREDENTIALS` (vedi `.env.local.example`).
 
+Al primo accesso a **Gestione utenti**, se non esiste ancora alcun account con
+il ruolo admin, l'app assegna automaticamente il ruolo al più vecchio account
+Firebase abilitato. I successivi account possono essere creati e promossi solo
+da un admin.
+
 Per testare il webhook in locale esponi la porta con un tunnel (es.
 `ngrok http 3000`) e usa l'URL pubblico nella configurazione Meta.
 
