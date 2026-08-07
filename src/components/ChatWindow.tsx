@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessage, Conversation } from "@/lib/types";
 import { isWithinServiceWindow } from "@/lib/types";
 import { useMessages, markConversationRead } from "@/hooks/useChat";
@@ -15,14 +15,35 @@ interface Props {
 
 export default function ChatWindow({ conversation, onBack }: Props) {
   const waId = conversation?.waId ?? null;
-  const { messages, loading } = useMessages(waId);
+  const { messages, loading, loadingMore, hasMore, loadMore } = useMessages(waId);
+  const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Altezza della lista prima di caricare i messaggi più vecchi: dopo che la
+  // lista si è allungata in cima, la differenza rimette la vista sullo stesso
+  // messaggio invece di far saltare la chat.
+  const restoreFromHeight = useRef<number | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
 
-  // Scroll all'ultimo messaggio a ogni aggiornamento.
-  useEffect(() => {
+  // Scroll all'ultimo messaggio a ogni aggiornamento, tranne quando stiamo
+  // risalendo lo storico. `useLayoutEffect` corregge la posizione prima che il
+  // browser dipinga, così non si vede lo scatto.
+  useLayoutEffect(() => {
+    const list = listRef.current;
+
+    if (restoreFromHeight.current !== null) {
+      if (list) list.scrollTop += list.scrollHeight - restoreFromHeight.current;
+      restoreFromHeight.current = null;
+      return;
+    }
+
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  function handleLoadMore() {
+    if (loadingMore || !hasMore) return;
+    restoreFromHeight.current = listRef.current?.scrollHeight ?? 0;
+    loadMore();
+  }
 
   // Azzera i non letti all'apertura della chat e scarta la citazione in sospeso:
   // appartiene alla conversazione che stiamo lasciando.
@@ -82,9 +103,23 @@ export default function ChatWindow({ conversation, onBack }: Props) {
       {/* Messaggi */}
       {/* overflow-x-hidden: durante lo swipe la bolla esce dal bordo e non deve
           comparire una barra di scorrimento orizzontale. */}
-      <div className="chat-bg min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-3 thin-scroll">
+      <div
+        ref={listRef}
+        className="chat-bg min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-3 thin-scroll"
+      >
         {loading && (
           <p className="text-center text-sm text-gray-500">Caricamento…</p>
+        )}
+        {!loading && hasMore && (
+          <div className="mb-2 text-center">
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="rounded-full bg-white/80 px-4 py-1.5 text-sm font-medium text-wa-teal shadow-sm hover:bg-white disabled:opacity-60"
+            >
+              {loadingMore ? "Caricamento…" : "Carica messaggi precedenti"}
+            </button>
+          </div>
         )}
         {messages.map((m) => (
           <MessageBubble

@@ -1,0 +1,19 @@
+rules_version = '2';
+
+/**
+ * Gli allegati archiviati sotto `whatsapp-media/` non sono mai serviti
+ * direttamente al browser: si passa sempre da `/api/whatsapp/media/{id}`, che
+ * verifica l'ID token dell'operatore e legge il file con l'Admin SDK (le regole
+ * non si applicano all'Admin SDK).
+ *
+ * Di conseguenza qui non serve alcun accesso client, e lasciarlo aperto
+ * significherebbe rendere pubblici i media delle conversazioni a chiunque
+ * abbia un account sul progetto.
+ */
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

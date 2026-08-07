@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
 import { saveOutboundMessage } from "@/lib/firebase/firestore-admin";
+import { archiveOutboundMedia } from "@/lib/firebase/media-archive";
 import { sendMediaMessage, uploadMedia } from "@/lib/whatsapp";
 import {
   fallbackFileName,
@@ -129,6 +130,10 @@ export async function POST(request: Request) {
       timestamp: Date.now(),
       status: "sent",
     });
+
+    // Copia nel bucket partendo dai byte già caricati, così l'allegato resta
+    // visibile nello storico anche dopo i 30 giorni di Meta.
+    await archiveOutboundMedia(to, messageId, mediaId, file, mimeType, filename);
 
     return NextResponse.json({ messageId, mediaId, type: kind });
   } catch (err) {

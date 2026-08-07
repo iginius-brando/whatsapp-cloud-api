@@ -10,8 +10,10 @@ le conversazioni del numero WhatsApp aziendale.
 
 - **Next.js 15** (App Router, TypeScript) — SSR + API routes
 - **Firebase App Hosting** — deploy
-- **Firestore** — conversazioni e messaggi, con aggiornamento realtime
+- **Firestore** — conversazioni, messaggi e coda degli eventi del webhook, con
+  aggiornamento realtime
 - **Firebase Authentication** — login operatori (Google + email/password)
+- **Firebase Storage** — copia degli allegati, che su WhatsApp scadono a 30 giorni
 - **WhatsApp Cloud API** — invio/ricezione messaggi
 
 ## Come funziona
@@ -20,22 +22,34 @@ le conversazioni del numero WhatsApp aziendale.
 Cliente WhatsApp
       │  (messaggio)
       ▼
-Meta Cloud API ──POST──►  /api/whatsapp/webhook  ──►  Firestore
-      ▲                                                   │
-      │  (invio via Graph API)                            │ realtime
-      │                                                   ▼
-/api/whatsapp/send  ◄── operatore ◄──── UI chat (onSnapshot)
+Meta Cloud API ──POST──►  /api/whatsapp/webhook
+      ▲                        │
+      │                        ├─► webhookEvents (payload grezzo)  ──┐
+      │                        └─► conversations/messages            │ ripresa
+      │                                    │                         │
+      │  (invio via Graph API)             │ realtime      /api/whatsapp/maintenance
+      │                                    ▼                   ▲ (Cloud Scheduler)
+/api/whatsapp/send  ◄── operatore ◄──── UI chat (onSnapshot)    │
 ```
 
 - **Ricezione**: Meta invia gli eventi (messaggi + stati di consegna) al webhook
   `POST /api/whatsapp/webhook`. La firma `X-Hub-Signature-256` viene verificata
-  con l'App Secret. I messaggi vengono salvati su Firestore tramite l'Admin SDK.
+  con l'App Secret. Il payload grezzo viene prima messo al sicuro in
+  `webhookEvents`, poi elaborato e salvato su Firestore tramite l'Admin SDK
+  (vedi [Durabilità del webhook](#durabilità-del-webhook)).
 - **Realtime**: la UI ascolta Firestore con `onSnapshot`, quindi le nuove chat e
-  i nuovi messaggi compaiono senza refresh.
+  i nuovi messaggi compaiono senza refresh. La chat carica gli ultimi 50
+  messaggi e risale lo storico a richiesta (*Carica messaggi precedenti*),
+  allargando la finestra della stessa sottoscrizione: resta un solo listener,
+  che continua a ricevere i messaggi nuovi anche dopo aver risalito la
+  conversazione. L'ordinamento della query è **discendente**, perché Firestore
+  ordina prima di applicare il `limit`: chiedendo `asc` si otterrebbero i
+  messaggi più vecchi e la chat non mostrerebbe mai gli ultimi arrivati.
 - **Invio**: l'operatore scrive dalla UI → `POST /api/whatsapp/send` (protetto da
   ID token Firebase) → Graph API → il messaggio viene salvato su Firestore.
 - **Allegati**: immagini, video, audio e documenti viaggiano in entrambe le
-  direzioni (vedi [Allegati](#allegati-immagini-video-audio-e-documenti)).
+  direzioni e vengono archiviati su Firebase Storage
+  (vedi [Allegati](#allegati-immagini-video-audio-e-documenti)).
 - **Risposte**: ogni messaggio può citarne uno precedente
   (vedi [Risposte](#risposte-a-un-messaggio)).
 - **Stati**: le spunte (inviato ✓, consegnato/letto ✓✓) arrivano dagli eventi
@@ -51,6 +65,7 @@ src/
 ├── app/
 │   ├── api/whatsapp/
 │   │   ├── webhook/route.ts   # GET verifica + POST eventi (messaggi/stati)
+│   │   ├── maintenance/route.ts    # ripresa eventi in coda + archiviazione media
 │   │   ├── send/route.ts      # invio testo (auth con ID token Firebase)
 │   │   ├── send-media/route.ts     # invio allegati (multipart)
 │   │   ├── embedded-signup/route.ts # onboarding clienti (solo admin)
@@ -69,8 +84,11 @@ src/
 │   └── useSwipeToReply.ts     # gesto "trascina per rispondere" su touch
 └── lib/
     ├── firebase/client.ts     # SDK client
-    ├── firebase/admin.ts      # SDK admin (server)
+    ├── firebase/admin.ts      # SDK admin (server) + bucket degli allegati
     ├── firebase/firestore-admin.ts  # scritture messaggi/conversazioni/tenant
+    ├── firebase/webhook-events.ts   # coda durevole degli eventi del webhook
+    ├── firebase/media-archive.ts    # copia degli allegati su Storage
+    ├── whatsapp-events.ts     # elaborazione dei payload del webhook
     ├── meta/graph.ts          # helper comuni Graph API
     ├── meta/embedded-signup.ts # onboarding clienti (tech provider)
     ├── meta/token-vault.ts    # cifratura a riposo dei token dei clienti
@@ -89,9 +107,14 @@ conversations/{waId}
         id, direction (in|out), type, text, status, timestamp
         mediaCaption            # etichetta di ripiego, es. "[immagine]"
         media                   # solo sui messaggi con allegato:
-          { id, mimeType, filename, size, sha256, voice, animated }
+          { id, storagePath, mimeType, filename, size, sha256, voice, animated }
+        mediaArchive            # pending | done | unavailable (vedi Allegati)
         replyTo                 # solo sulle risposte:
           { id, direction, type, text }
+
+webhookEvents/{sha256(payload)}  # coda durevole degli eventi di Meta
+  raw, status (pending|done|abandoned), attempts, lastError,
+  receivedAt, lastDeliveryAt, processedAt, expireAt
 
 whatsappTenants/{wabaId}        # clienti onboardati via Embedded Signup
   wabaId, businessId, name, currency, timezoneId, accountReviewStatus,
@@ -102,8 +125,20 @@ whatsappTenants/{wabaId}        # clienti onboardati via Embedded Signup
 
 `waId` = numero del cliente in formato E.164 senza `+` (es. `393331234567`).
 
-I byte degli allegati **non** finiscono su Firestore: si salva solo il `media.id`
-di WhatsApp e il file si scarica al volo dalla Graph API.
+I byte degli allegati **non** finiscono su Firestore: su Firestore restano il
+`media.id` di WhatsApp e il percorso della copia archiviata su Firebase Storage.
+
+### Regole di accesso
+
+Le regole (`firestore.rules`) partono da un deny totale. Dal browser un
+operatore autenticato può **leggere** conversazioni e messaggi — l'inbox è
+condivisa per scelta — ma l'unica scrittura consentita è azzerare `unreadCount`
+sulla conversazione che sta aprendo. Tutto il resto (messaggi in ingresso,
+invii, stati di consegna, token dei clienti, coda del webhook) passa
+dall'Admin SDK lato server, che le regole non le applica.
+
+Anche `storage.rules` nega ogni accesso client: gli allegati archiviati si
+leggono solo dal proxy `/api/whatsapp/media/{id}`.
 
 ---
 
@@ -174,6 +209,9 @@ firebase apphosting:secrets:set whatsapp-phone-number-id
 firebase apphosting:secrets:set WHATSAPP_BUSINESS_ACCOUNT_ID
 firebase apphosting:secrets:set whatsapp-webhook-verify-token
 firebase apphosting:secrets:set whatsapp-app-secret
+# Token della manutenzione periodica (vedi più avanti). Valore casuale:
+#   openssl rand -base64 32
+firebase apphosting:secrets:set whatsapp-maintenance-token
 ```
 
 L'invio dei template richiede `WHATSAPP_BUSINESS_ACCOUNT_ID`, dichiarato in
@@ -194,10 +232,108 @@ tua app Web, poi collega il repository ad App Hosting dalla console Firebase
 (*App Hosting → Get started*) oppure fai il deploy da CLI. Ad ogni push sul
 branch collegato App Hosting eseguirà build e rollout.
 
-Pubblica infine le regole Firestore:
+Pubblica infine regole e indici:
 
 ```bash
-firebase deploy --only firestore:rules,firestore:indexes
+firebase deploy --only firestore:rules,firestore:indexes,storage
+```
+
+Gli indici sono necessari: senza di essi la coda del webhook e l'archiviazione
+degli allegati non riescono a leggere le rispettive liste di lavoro. Il deploy
+di `storage` chiude il bucket a ogni accesso client — i media si leggono solo
+dal proxy autenticato.
+
+Conviene anche impostare una **TTL policy** su `webhookEvents`, così i payload
+grezzi non si accumulano per sempre. Il campo è già scritto dall'applicazione:
+
+```bash
+gcloud firestore fields ttls update expireAt \
+  --collection-group=webhookEvents --enable-ttl
+```
+
+---
+
+## Durabilità del webhook
+
+Il webhook ha un vincolo scomodo: **non può rispondere 500 a Meta** per un
+errore proprio. Meta interpreta l'errore come mancata consegna e ritenta lo
+stesso payload per ore, moltiplicando il problema invece di risolverlo. Ma
+rispondere sempre 200 significa che una scrittura fallita su Firestore fa
+sparire un messaggio del cliente senza che nessuno se ne accorga.
+
+La via d'uscita è separare *mettere al sicuro* da *elaborare*:
+
+```
+POST /api/whatsapp/webhook
+  1. verifica firma X-Hub-Signature-256      → 401 se non torna
+  2. parsing del JSON                        → 400 se non è leggibile
+  3. scrittura in webhookEvents (payload)    → 500 se fallisce: Meta ritenti
+  4. elaborazione e salvataggio              → sempre 200, anche in errore
+```
+
+Solo il passo 3 può restituire 500, ed è il caso giusto: a quel punto non
+abbiamo ancora fatto nulla, quindi una riconsegna di Meta è esattamente ciò che
+serve. Superato quel punto il payload è al sicuro e l'elaborazione può fallire
+senza perdere niente: l'evento resta `pending` e viene ripreso dalla
+[manutenzione](#manutenzione-periodica).
+
+Due dettagli che rendono il meccanismo utilizzabile davvero:
+
+- **Deduplica.** L'id del documento è lo `sha256` del corpo grezzo. I retry di
+  Meta ripetono il payload identico, quindi ricadono sullo stesso documento: se
+  risulta già `done` la risposta è immediata e non si rielabora nulla.
+- **Idempotenza.** `saveInboundMessage` gira in una transazione che controlla se
+  il messaggio esiste già. Rielaborare un evento non incrementa una seconda
+  volta i non letti e non riporta indietro l'anteprima della conversazione, che
+  nel frattempo può essere passata a un messaggio più recente.
+
+Dopo `MAX_PROCESSING_ATTEMPTS` tentativi falliti l'evento passa ad `abandoned`:
+continuare a ritentare un payload che non va giù bloccherebbe la coda dietro di
+sé. Quei documenti restano su Firestore con `lastError` per l'analisi.
+
+> **Nota sui limiti.** Questa è una coda su Firestore, non un broker: la ripresa
+> avviene alla cadenza dello scheduler, non entro pochi secondi. Per retry
+> immediati il passo successivo naturale è Cloud Tasks, che può chiamare
+> `/api/whatsapp/maintenance` a ogni fallimento invece di aspettare il giro
+> successivo.
+
+---
+
+## Manutenzione periodica
+
+`POST /api/whatsapp/maintenance` fa il lavoro che non può stare dentro alla
+richiesta del webhook:
+
+- **rielabora gli eventi rimasti in coda** (fino a 25 per esecuzione);
+- **archivia gli allegati** ancora solo sui server di Meta (fino a 10 per
+  esecuzione), compresi quelli troppo grandi per la copia inline.
+
+Ogni esecuzione lavora a lotti: se resta arretrato, ci pensa la corsa successiva.
+
+L'endpoint non usa Firebase Auth — chi lo chiama è uno scheduler, non un
+operatore — ma un token condiviso nell'header `x-maintenance-token`, confrontato
+a tempo costante con `WHATSAPP_MAINTENANCE_TOKEN`. **Senza quel secret l'endpoint
+risponde 503** e la manutenzione non parte.
+
+```bash
+gcloud scheduler jobs create http whatsapp-maintenance \
+  --schedule="*/10 * * * *" \
+  --uri="https://<il-tuo-dominio>/api/whatsapp/maintenance" \
+  --http-method=POST \
+  --headers="x-maintenance-token=<valore-del-secret>" \
+  --location=<regione>
+```
+
+Dieci minuti sono una cadenza ragionevole: la coda del webhook si svuota in
+fretta e per l'archiviazione dei media la scadenza vera è a 30 giorni. La
+risposta riepiloga il lavoro svolto, comoda da controllare a mano:
+
+```json
+{
+  "ok": true,
+  "events": { "processed": 2, "failed": 0, "abandoned": 0 },
+  "media":  { "archived": 5, "skipped": 0, "unavailable": 1 }
+}
 ```
 
 ---
@@ -211,26 +347,52 @@ configurazione aggiuntiva: bastano `WHATSAPP_ACCESS_TOKEN` e
 ```
 Invio      file dal composer ──► POST /api/whatsapp/send-media
                                    ├─ upload su /{phone-number-id}/media  → media id
-                                   └─ invio del messaggio per id          → wamid
+                                   ├─ invio del messaggio per id          → wamid
+                                   └─ copia dei byte su Storage
 
 Ricezione  webhook ──► salva { type, media.id, mimeType, filename } su Firestore
-           UI ──► GET /api/whatsapp/media/{id} ──► Graph API ──► byte al browser
+                   └─ copia da Graph API a Storage (sotto i 16 MB)
+           UI ──► GET /api/whatsapp/media/{id} ──► Storage, o Graph API se manca
 ```
 
 ### Perché serve un proxy per la lettura
 
-I media di Meta non sono pubblici. Il webhook consegna solo un `id`; per
-ottenere i byte bisogna prima risolverlo in un URL temporaneo (scade in pochi
-minuti) e poi scaricarlo passando l'access token. Quel token non può stare nel
-browser, quindi `GET /api/whatsapp/media/{mediaId}` fa da proxy: verifica l'ID
-token Firebase dell'operatore e inoltra lo stream. La UI lo chiama via `fetch` e
-converte la risposta in un object URL (`src/hooks/useMedia.ts`), che tiene in
-cache finché il componente è montato.
+Né i media di Meta né il bucket sono pubblici. Il webhook consegna solo un `id`;
+per ottenere i byte da Meta bisogna prima risolverlo in un URL temporaneo (scade
+in pochi minuti) e poi scaricarlo passando l'access token, che non può stare nel
+browser. Anche la copia su Storage è chiusa a ogni client (`storage.rules`).
 
-Conseguenza pratica: **Meta conserva i media 30 giorni**. Dopo quel periodo la
-chat mostra ancora il messaggio, ma l'allegato non è più scaricabile. Se serve
-conservarli a lungo, il punto giusto dove intervenire è il webhook: copiare il
-file su Cloud Storage e salvarne il riferimento accanto a `media.id`.
+`GET /api/whatsapp/media/{mediaId}` fa quindi da proxy: verifica l'ID token
+Firebase dell'operatore, **preferisce la copia archiviata** e ripiega sulla
+Graph API quando non c'è ancora. La UI lo chiama via `fetch` e converte la
+risposta in un object URL (`src/hooks/useMedia.ts`), che tiene in cache finché il
+componente è montato.
+
+### Archiviazione su Storage
+
+**Meta conserva i media 30 giorni.** Senza una copia, passato quel periodo la
+chat mostrerebbe ancora il messaggio ma non l'allegato. Ogni allegato viene
+perciò copiato in `whatsapp-media/{mediaId}` sul bucket del progetto, e il
+messaggio tiene traccia di dove sta il file (`media.storagePath`) e a che punto è
+la copia (`mediaArchive`):
+
+| Momento | Cosa succede |
+|---|---|
+| Invio dell'operatore | I byte sono già nella richiesta: si archivia subito, senza riscaricare nulla |
+| Ricezione sotto i 5 MB | Copia dentro all'elaborazione del webhook |
+| Ricezione sopra i 5 MB | Resta `pending`: il vincolo non è il limite di WhatsApp ma la pazienza di Meta, che riconsegna l'evento se il webhook tarda a rispondere |
+| `pending` rimasti indietro | Li archivia lo sweeper di [manutenzione](#manutenzione-periodica) |
+| Media già scaduto su Meta | Passa a `unavailable`: non è più recuperabile e si smette di ritentare |
+
+L'archiviazione non è mai bloccante: se fallisce, il messaggio viene salvato lo
+stesso e l'allegato resta in coda. Finché resta `pending` il proxy continua a
+servirlo dalla Graph API, quindi per l'operatore non cambia nulla.
+
+> **Cloud Scheduler non è opzionale per la conservazione completa.** Senza,
+> restano archiviati gli allegati inviati dagli operatori e quelli ricevuti
+> sotto i 5 MB — immagini, sticker, note vocali. Video e documenti pesanti
+> restano `pending` e a 30 giorni li si perde: è proprio il caso che lo sweeper
+> esiste per coprire.
 
 ### Formati e limiti
 
@@ -302,8 +464,8 @@ Accanto al messaggio finisce `replyTo: { id, direction, type, text }`, cioè il
 riferimento **più un'istantanea** del contenuto citato, risolta leggendo il
 messaggio originale da Firestore al momento della scrittura.
 
-La ridondanza è voluta: la chat carica gli ultimi 500 messaggi, quindi con il
-solo id una citazione a un messaggio più vecchio resterebbe vuota. Con
+La ridondanza è voluta: la chat carica gli ultimi 50 messaggi per volta, quindi
+con il solo id una citazione a un messaggio più vecchio resterebbe vuota. Con
 l'istantanea la citazione è sempre leggibile; l'id serve in più a saltare
 all'originale quando è ancora in pagina. Costo: una lettura Firestore per ogni
 risposta.

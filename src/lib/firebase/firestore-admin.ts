@@ -150,7 +150,15 @@ interface InboundMessageInput {
   flowResponse?: Record<string, unknown>;
 }
 
-/** Salva un messaggio in ingresso e aggiorna i metadati della conversazione. */
+/**
+ * Salva un messaggio in ingresso e aggiorna i metadati della conversazione.
+ *
+ * È **idempotente**: lo stesso evento può arrivare più volte (Meta ritenta, e
+ * la coda `webhookEvents` può rielaborarlo), quindi la transazione controlla se
+ * il messaggio esiste già. In quel caso non incrementa i non letti e non
+ * riporta indietro l'anteprima della conversazione, che nel frattempo può
+ * essere passata a un messaggio più recente.
+ */
 export async function saveInboundMessage(input: InboundMessageInput): Promise<void> {
   const {
     waId,
@@ -170,42 +178,62 @@ export async function saveInboundMessage(input: InboundMessageInput): Promise<vo
     ? await resolveReplyContext(waId, input.replyToMessageId)
     : undefined;
 
-  const batch = adminDb.batch();
+  await adminDb.runTransaction(async (tx) => {
+    const [messageSnap, conversationSnap] = await Promise.all([
+      tx.get(messageRef(waId, messageId)),
+      tx.get(conversationRef(waId)),
+    ]);
 
-  batch.set(
-    conversationRef(waId),
-    {
-      waId,
-      ...(profileName ? { name: profileName } : {}),
-      lastMessage: preview,
-      lastMessageAt: timestamp,
-      lastMessageDirection: "in",
-      lastInboundAt: timestamp,
-      unreadCount: FieldValue.increment(1),
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true },
-  );
+    const isNew = !messageSnap.exists;
+    const conversation = conversationSnap.data();
+    const isLatest = timestamp >= (conversation?.lastMessageAt ?? 0);
+    const isLatestInbound = timestamp >= (conversation?.lastInboundAt ?? 0);
 
-  batch.set(
-    messageRef(waId, messageId),
-    {
-      id: messageId,
-      direction: "in",
-      type,
-      ...(text ? { text } : {}),
-      ...(mediaCaption ? { mediaCaption } : {}),
-      ...(media ? { media } : {}),
-      ...(replyTo ? { replyTo } : {}),
-      ...(flowToken ? { flowToken } : {}),
-      ...(flowResponse ? { flowResponse } : {}),
-      timestamp,
-      createdAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true },
-  );
+    tx.set(
+      conversationRef(waId),
+      {
+        waId,
+        ...(profileName ? { name: profileName } : {}),
+        // L'anteprima e la finestra di 24h descrivono l'ultimo messaggio della
+        // conversazione: una rielaborazione tardiva non deve sovrascriverle.
+        ...(isLatest
+          ? {
+              lastMessage: preview,
+              lastMessageAt: timestamp,
+              lastMessageDirection: "in",
+            }
+          : {}),
+        ...(isLatestInbound ? { lastInboundAt: timestamp } : {}),
+        ...(isNew ? { unreadCount: FieldValue.increment(1) } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
 
-  await batch.commit();
+    tx.set(
+      messageRef(waId, messageId),
+      {
+        id: messageId,
+        direction: "in",
+        type,
+        ...(text ? { text } : {}),
+        ...(mediaCaption ? { mediaCaption } : {}),
+        ...(media ? { media } : {}),
+        // L'allegato nasce da archiviare: i byte stanno ancora solo su
+        // WhatsApp. Solo alla prima scrittura, altrimenti una rielaborazione
+        // rimetterebbe in coda un allegato già archiviato.
+        ...(media && isNew ? { mediaArchive: "pending" } : {}),
+        ...(replyTo ? { replyTo } : {}),
+        ...(flowToken ? { flowToken } : {}),
+        ...(flowResponse ? { flowResponse } : {}),
+        timestamp,
+        // Momento in cui il messaggio è entrato *da noi*: una rielaborazione
+        // non deve spostarlo in avanti.
+        ...(isNew ? { createdAt: FieldValue.serverTimestamp() } : {}),
+      },
+      { merge: true },
+    );
+  });
 }
 
 interface OutboundMessageInput {
@@ -271,6 +299,7 @@ export async function saveOutboundMessage(
       ...(text ? { text } : {}),
       ...(mediaCaption ? { mediaCaption } : {}),
       ...(media ? { media } : {}),
+      ...(media ? { mediaArchive: "pending" } : {}),
       ...(replyTo ? { replyTo } : {}),
       status,
       ...(flowToken ? { flowToken } : {}),
@@ -281,6 +310,77 @@ export async function saveOutboundMessage(
   );
 
   await batch.commit();
+}
+
+// --- Archiviazione degli allegati ---------------------------------------
+
+/** Messaggio con un allegato ancora da copiare su Storage. */
+export interface PendingMediaMessage {
+  waId: string;
+  messageId: string;
+  mediaId: string;
+  filename?: string;
+}
+
+/**
+ * Allegati in attesa di archiviazione, dal più vecchio al più recente: sono
+ * quelli più vicini alla scadenza dei 30 giorni di Meta, quindi i più urgenti.
+ */
+export async function listPendingMediaMessages(
+  max: number,
+): Promise<PendingMediaMessage[]> {
+  const snapshot = await adminDb
+    .collectionGroup("messages")
+    .where("mediaArchive", "==", "pending")
+    .orderBy("timestamp", "asc")
+    .limit(max)
+    .get();
+
+  return snapshot.docs.flatMap((doc) => {
+    const data = doc.data();
+    const mediaId = data.media?.id;
+    // Il documento sta in conversations/{waId}/messages/{messageId}.
+    const waId = doc.ref.parent.parent?.id;
+    if (typeof mediaId !== "string" || !waId) return [];
+
+    return [
+      {
+        waId,
+        messageId: doc.id,
+        mediaId,
+        filename:
+          typeof data.media?.filename === "string"
+            ? data.media.filename
+            : undefined,
+      },
+    ];
+  });
+}
+
+/** Registra la copia su Storage di un allegato. */
+export async function markMediaArchived(
+  waId: string,
+  messageId: string,
+  storagePath: string,
+): Promise<void> {
+  await messageRef(waId, messageId).set(
+    { mediaArchive: "done", media: { storagePath } },
+    { merge: true },
+  );
+}
+
+/**
+ * Segna un allegato come non più recuperabile: Meta lo ha già cancellato.
+ * Serve a togliere dalla coda quello che non ha senso continuare a ritentare.
+ */
+export async function markMediaUnavailable(
+  waId: string,
+  messageId: string,
+): Promise<void> {
+  await messageRef(waId, messageId).set(
+    { mediaArchive: "unavailable" },
+    { merge: true },
+  );
 }
 
 interface FlowBookingInput {

@@ -206,6 +206,18 @@ export interface WhatsAppMediaMetadata {
   sha256?: string;
 }
 
+/**
+ * Il media non esiste più sui server di Meta (li conserva 30 giorni) o non è
+ * raggiungibile con questo token. È un errore **definitivo**: chi archivia deve
+ * smettere di riprovare invece di accumulare tentativi inutili.
+ */
+export class MediaUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MediaUnavailableError";
+  }
+}
+
 /** Risolve un media id nell'URL temporaneo di download. */
 export async function getMediaMetadata(
   mediaId: string,
@@ -221,11 +233,19 @@ export async function getMediaMetadata(
 
   if (!res.ok) {
     const detail = data?.error?.message || JSON.stringify(data);
-    throw new Error(`Errore lettura media WhatsApp (${res.status}): ${detail}`);
+    const message = `Errore lettura media WhatsApp (${res.status}): ${detail}`;
+    // 4xx (tranne 429) significa che quell'id non tornerà più disponibile:
+    // sui 5xx e sul rate limit conviene invece riprovare più tardi.
+    if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+      throw new MediaUnavailableError(message);
+    }
+    throw new Error(message);
   }
 
   if (!data?.url) {
-    throw new Error("Media non disponibile: WhatsApp li conserva 30 giorni");
+    throw new MediaUnavailableError(
+      "Media non disponibile: WhatsApp li conserva 30 giorni",
+    );
   }
 
   return {
@@ -246,10 +266,17 @@ export interface DownloadedMedia {
 /**
  * Scarica il contenuto di un media. Restituisce lo stream, così la route può
  * inoltrarlo al browser senza tenere l'intero file in memoria.
+ *
+ * Con `knownMetadata` si riusa una lettura già fatta: l'archiviazione consulta
+ * i metadati per conoscere la dimensione prima di decidere se scaricare, e non
+ * ha senso pagare due volte la stessa chiamata alla Graph API.
  */
-export async function downloadMedia(mediaId: string): Promise<DownloadedMedia> {
+export async function downloadMedia(
+  mediaId: string,
+  knownMetadata?: WhatsAppMediaMetadata,
+): Promise<DownloadedMedia> {
   const token = requireEnv("WHATSAPP_ACCESS_TOKEN");
-  const metadata = await getMediaMetadata(mediaId);
+  const metadata = knownMetadata ?? (await getMediaMetadata(mediaId));
 
   const res = await fetch(metadata.url, {
     headers: {

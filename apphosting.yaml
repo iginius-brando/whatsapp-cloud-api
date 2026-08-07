@@ -35,6 +35,16 @@ env:
     value: v22.0
     availability: [RUNTIME]
 
+  # --- Manutenzione periodica (Cloud Scheduler) -------------------------
+  # Token con cui Cloud Scheduler chiama POST /api/whatsapp/maintenance:
+  # rielabora gli eventi del webhook rimasti in coda e archivia su Storage gli
+  # allegati non ancora copiati. Senza questo secret l'endpoint risponde 503 e
+  # la manutenzione non parte. Crea il segreto con:
+  #   firebase apphosting:secrets:set whatsapp-maintenance-token
+  - variable: WHATSAPP_MAINTENANCE_TOKEN
+    secret: whatsapp-maintenance-token
+    availability: [RUNTIME]
+
   # --- Segreti WhatsApp (Cloud Secret Manager) --------------------------
   # Crea i segreti con:
   #   firebase apphosting:secrets:set whatsapp-access-token

@@ -7,15 +7,30 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Le conversazioni e i messaggi sono leggibili/scrivibili solo dagli
-    // operatori autenticati (inbox condivisa: tutti vedono tutte le chat).
-    // Le scritture in ingresso dal webhook WhatsApp passano dall'Admin SDK,
-    // che bypassa queste regole.
-    match /conversations/{conversationId} {
-      allow read, write: if isSignedIn();
+    /**
+     * L'unica scrittura che parte davvero dal browser è l'azzeramento dei non
+     * letti (`markConversationRead` in src/hooks/useChat.ts). Tutto il resto —
+     * messaggi in ingresso dal webhook, invii dell'operatore, stati di consegna
+     * — passa dall'Admin SDK lato server, che queste regole non le vede.
+     */
+    function isUnreadReset() {
+      return request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['unreadCount'])
+             && request.resource.data.unreadCount == 0;
+    }
 
+    // Inbox condivisa: tutti gli operatori autenticati leggono tutte le chat.
+    match /conversations/{conversationId} {
+      allow read: if isSignedIn();
+      allow update: if isSignedIn() && isUnreadReset();
+      // Creare o cancellare una conversazione dal client non serve a nulla e
+      // permetterebbe di distruggere lo storico dalla console del browser.
+      allow create, delete: if false;
+
+      // I messaggi sono la fonte di verità della conversazione: sola lettura.
       match /messages/{messageId} {
-        allow read, write: if isSignedIn();
+        allow read: if isSignedIn();
+        allow write: if false;
       }
     }
 
@@ -24,6 +39,12 @@ service cloud.firestore {
     // client, si leggono e si scrivono solo dall'Admin SDK. Sono coperti dalla
     // regola di default qui sotto, esplicitata per non lasciare dubbi.
     match /whatsappTenants/{wabaId} {
+      allow read, write: if false;
+    }
+
+    // Coda durevole degli eventi del webhook: contiene i payload grezzi di Meta
+    // e viene letta e scritta solo dall'Admin SDK.
+    match /webhookEvents/{eventId} {
       allow read, write: if false;
     }
 

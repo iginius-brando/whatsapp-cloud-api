@@ -1,5 +1,7 @@
+import { Readable } from "stream";
 import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
+import { readArchivedMedia } from "@/lib/firebase/media-archive";
 import { downloadMedia } from "@/lib/whatsapp";
 
 export const runtime = "nodejs";
@@ -22,12 +24,46 @@ function contentDisposition(filename?: string | null): string {
   return `inline; filename*=UTF-8''${encodeURIComponent(clean)}`;
 }
 
+/** Corpo della risposta: i due sorgenti danno stream di tipo diverso. */
+interface MediaSource {
+  body: ReadableStream<Uint8Array> | null;
+  mimeType: string;
+  size?: number;
+}
+
+/**
+ * Preferisce la copia archiviata su Firebase Storage e ripiega sulla Graph API.
+ *
+ * L'ordine conta: dopo 30 giorni Meta cancella i media, quindi per lo storico
+ * la copia nel bucket è l'unica fonte rimasta. Per un allegato appena arrivato
+ * e non ancora archiviato vale il contrario, e la Graph API copre il buco.
+ */
+async function loadMedia(mediaId: string): Promise<MediaSource> {
+  const archived = await readArchivedMedia(mediaId).catch((err) => {
+    console.error("Lettura dell'allegato archiviato fallita:", err);
+    return null;
+  });
+
+  if (archived) {
+    return {
+      body: Readable.toWeb(
+        archived.stream as Readable,
+      ) as ReadableStream<Uint8Array>,
+      mimeType: archived.mimeType,
+      size: archived.size,
+    };
+  }
+
+  return downloadMedia(mediaId);
+}
+
 /**
  * GET — scarica un allegato WhatsApp e lo inoltra all'operatore.
  *
- * I media di Meta non sono pubblici: l'URL temporaneo va risolto e richiesto
- * con l'access token, che non può stare nel browser. Questa route fa da proxy
- * autenticato, quindi la UI la chiama con l'ID token Firebase e riceve i byte.
+ * Né i media di Meta né il bucket sono pubblici: l'URL temporaneo di Meta va
+ * risolto con l'access token e Storage è chiuso a ogni client. Questa route fa
+ * da proxy autenticato, quindi la UI la chiama con l'ID token Firebase e riceve
+ * i byte.
  */
 export async function GET(
   request: Request,
@@ -53,7 +89,7 @@ export async function GET(
   }
 
   try {
-    const { body, mimeType, size } = await downloadMedia(mediaId);
+    const { body, mimeType, size } = await loadMedia(mediaId);
 
     const filename = new URL(request.url).searchParams.get("filename");
     const headers = new Headers({

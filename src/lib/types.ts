@@ -24,13 +24,19 @@ export type MessageType =
   | "interactive"
   | "unsupported";
 
-/** Allegato di un messaggio: i byte restano su WhatsApp, noi teniamo l'id. */
+/** Allegato di un messaggio: l'id di WhatsApp più la copia su Storage. */
 export interface MessageMedia {
   /**
    * Media id di WhatsApp. Si scarica da `/api/whatsapp/media/{id}`; Meta
-   * conserva i file 30 giorni, poi l'allegato non è più recuperabile.
+   * conserva i file 30 giorni, dopodiché resta solo la copia archiviata.
    */
   id: string;
+  /**
+   * Percorso della copia su Firebase Storage, quando l'archiviazione è
+   * riuscita. È il proxy a decidere da dove servire i byte: il browser non
+   * accede mai al bucket.
+   */
+  storagePath?: string;
   mimeType?: string;
   /** Nome originale del file (documenti). */
   filename?: string;
@@ -44,9 +50,17 @@ export interface MessageMedia {
 }
 
 /**
+ * Stato della copia dell'allegato su Firebase Storage.
+ * - `pending`: da archiviare (lo sweeper di manutenzione ci riproverà);
+ * - `done`: copia disponibile, il proxy la serve da lì;
+ * - `unavailable`: Meta ha già cancellato il file, non è più recuperabile.
+ */
+export type MediaArchiveStatus = "pending" | "done" | "unavailable";
+
+/**
  * Messaggio citato in risposta. Oltre all'id teniamo un'istantanea del
- * contenuto: il messaggio originale può essere fuori dalla finestra di 500
- * caricata dalla chat, e la citazione deve restare leggibile lo stesso.
+ * contenuto: il messaggio originale può essere fuori dalla finestra di
+ * messaggi caricata dalla chat, e la citazione deve restare leggibile.
  */
 export interface MessageReply {
   /** wamid del messaggio a cui si risponde. */
@@ -69,6 +83,8 @@ export interface ChatMessage {
   mediaCaption?: string;
   /** Allegato, sui messaggi image/video/audio/document/sticker. */
   media?: MessageMedia;
+  /** Stato dell'archiviazione dell'allegato; assente sui messaggi senza media. */
+  mediaArchive?: MediaArchiveStatus;
   /** Messaggio citato, quando questo è una risposta. */
   replyTo?: MessageReply;
   error?: string;
