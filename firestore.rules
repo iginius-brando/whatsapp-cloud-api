@@ -19,6 +19,14 @@ service cloud.firestore {
       }
     }
 
+    // I clienti onboardati via Embedded Signup (collection whatsappTenants)
+    // contengono il token e il PIN di ciascun cliente: nessun accesso dal
+    // client, si leggono e si scrivono solo dall'Admin SDK. Sono coperti dalla
+    // regola di default qui sotto, esplicitata per non lasciare dubbi.
+    match /whatsappTenants/{wabaId} {
+      allow read, write: if false;
+    }
+
     // Blocca tutto il resto per default.
     match /{document=**} {
       allow read, write: if false;

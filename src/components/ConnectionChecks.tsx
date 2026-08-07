@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { getClientAuth } from "@/lib/firebase/client";
 
-type CheckKey = "phone" | "webhook" | "flow";
+type CheckKey = "phone" | "webhook" | "flow" | "signup";
 type CheckState = "idle" | "loading" | "ok" | "ko";
 
 interface CheckResult {
@@ -27,6 +27,11 @@ const checks: Array<{ key: CheckKey; title: string; description: string }> = [
     key: "flow",
     title: "Flow/App",
     description: "Flow configurato nell'app Meta",
+  },
+  {
+    key: "signup",
+    title: "Embedded Signup",
+    description: "App ID + App secret + Configuration ID",
   },
 ];
 

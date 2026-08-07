@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebase/admin";
+import { checkEmbeddedSignupConfig } from "@/lib/meta/embedded-signup";
 import {
   checkWhatsAppFlow,
   checkWhatsAppPhoneNumber,
@@ -9,10 +10,15 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type CheckTarget = "phone" | "webhook" | "flow";
+type CheckTarget = "phone" | "webhook" | "flow" | "signup";
 
 function isCheckTarget(value: string | null): value is CheckTarget {
-  return value === "phone" || value === "webhook" || value === "flow";
+  return (
+    value === "phone" ||
+    value === "webhook" ||
+    value === "flow" ||
+    value === "signup"
+  );
 }
 
 export async function GET(request: Request) {
@@ -67,6 +73,31 @@ export async function GET(request: Request) {
         details: flow.status
           ? `Flow ${flow.status}`
           : "Flow leggibile da Cloud API",
+      });
+    }
+
+    if (target === "signup") {
+      const signup = checkEmbeddedSignupConfig();
+      const missing = [
+        signup.appId ? null : "App ID",
+        signup.appSecret ? null : "App secret",
+        signup.configId ? null : "Configuration ID",
+      ].filter(Boolean);
+
+      return NextResponse.json({
+        ok: missing.length === 0,
+        label:
+          missing.length === 0
+            ? "Configurazione presente"
+            : "Configurazione incompleta",
+        details:
+          missing.length === 0
+            ? `Pronto per l'onboarding${
+                signup.tokenEncryption
+                  ? " · token dei clienti cifrati"
+                  : " · token dei clienti in chiaro"
+              }`
+            : `Mancano: ${missing.join(", ")}`,
       });
     }
 

@@ -49,6 +49,12 @@ export default function ChatList({
             Utenti
           </Link>
           <Link
+            href="/onboarding"
+            className="text-xs font-medium text-wa-teal hover:text-wa-dark"
+          >
+            Clienti
+          </Link>
+          <Link
             href="/security"
             className="text-xs font-medium text-wa-teal hover:text-wa-dark"
           >

@@ -60,6 +60,39 @@ env:
     secret: whatsapp-app-secret
     availability: [RUNTIME]
 
+  # --- Embedded Signup (onboarding clienti) -----------------------------
+  # Le variabili NEXT_PUBLIC_* finiscono nel bundle del browser, quindi
+  # servono anche in fase di BUILD. App Hosting rifiuta un `value` vuoto:
+  # togli il commento solo quando hai l'ID vero, non lasciare "".
+  # - variable: NEXT_PUBLIC_META_APP_ID
+  #   value: "<app-id-meta>"
+  #   availability: [BUILD, RUNTIME]
+  # - variable: NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID
+  #   value: "<configuration-id>"
+  #   availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_META_GRAPH_API_VERSION
+    value: v22.0
+    availability: [BUILD, RUNTIME]
+  # "3" per le configurazioni attuali, "none" per le configurazioni v4
+  # (extras vuoto: ogni scelta sta nella configurazione di login).
+  - variable: NEXT_PUBLIC_META_EMBEDDED_SIGNUP_SESSION_INFO_VERSION
+    value: "3"
+    availability: [BUILD, RUNTIME]
+
+  # App secret per lo scambio del code: se non lo imposti viene riusato
+  # WHATSAPP_APP_SECRET, che di norma è lo stesso valore.
+  # - variable: META_APP_SECRET
+  #   secret: meta-app-secret
+  #   availability: [RUNTIME]
+
+  # Passphrase per cifrare a riposo i token dei clienti su Firestore. Crea il
+  # secret prima di togliere il commento, altrimenti il rollout fallisce in
+  # `preparer` con fah/misconfigured-secret:
+  #   firebase apphosting:secrets:set whatsapp-tenant-token-secret
+  # - variable: WHATSAPP_TENANT_TOKEN_SECRET
+  #   secret: whatsapp-tenant-token-secret
+  #   availability: [RUNTIME]
+
   # --- WhatsApp Flows ---------------------------------------------------
   # ID del Flow "Flusso Prenotazione". Non è un segreto.
   # Nota: App Hosting rifiuta un `value` vuoto, quindi se un giorno si toglie

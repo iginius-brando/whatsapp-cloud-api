@@ -121,3 +121,69 @@ export interface SecuritySettings {
   adminAuditEnabled: boolean;
   updatedAt?: Timestamp | null;
 }
+
+/** Passi dell'onboarding di un cliente via Embedded Signup. */
+export type OnboardingStepId =
+  /** Scambio del `code` con il token del cliente. */
+  | "token"
+  /** Permessi WhatsApp effettivamente concessi dal cliente. */
+  | "permissions"
+  /** Iscrizione della nostra app ai webhook della WABA del cliente. */
+  | "subscribe"
+  /** Registrazione del numero sulla Cloud API. */
+  | "register"
+  /** Lettura di WABA e numeri collegati. */
+  | "details";
+
+export interface OnboardingStep {
+  id: OnboardingStepId;
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
+/** Numero collegato alla WABA di un cliente. */
+export interface WhatsAppTenantPhoneNumber {
+  /** Phone Number ID da usare negli invii per quel numero. */
+  id: string;
+  displayPhoneNumber?: string;
+  verifiedName?: string;
+  qualityRating?: string;
+  codeVerificationStatus?: string;
+  /** "CLOUD_API" oppure "NOT_APPLICABLE" sui numeri in coesistenza. */
+  platformType?: string;
+}
+
+export type WhatsAppTenantStatus = "connected" | "incomplete";
+
+/**
+ * Cliente onboardato come tech provider: una WABA condivisa con la nostra app.
+ * Il token del cliente **non** fa parte di questo tipo: resta lato server, in
+ * un campo separato del documento Firestore (vedi `firestore-admin.ts`).
+ */
+export interface WhatsAppTenant {
+  /** ID della WhatsApp Business Account del cliente, usato come doc id. */
+  wabaId: string;
+  /** Business portfolio del cliente, quando il flusso lo restituisce. */
+  businessId?: string;
+  name?: string;
+  currency?: string;
+  timezoneId?: string;
+  accountReviewStatus?: string;
+  phoneNumbers?: WhatsAppTenantPhoneNumber[];
+  /** Numero scelto durante l'Embedded Signup. */
+  defaultPhoneNumberId?: string;
+  grantedScopes?: string[];
+  /** Millisecondi epoch della scadenza del token; 0 se non scade. */
+  tokenExpiresAt?: number;
+  /** True se il token è cifrato a riposo (vedi `token-vault.ts`). */
+  tokenEncrypted?: boolean;
+  subscribed?: boolean;
+  registered?: boolean;
+  status: WhatsAppTenantStatus;
+  /** Esito dell'ultimo onboarding, passo per passo. */
+  steps?: OnboardingStep[];
+  connectedByEmail?: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+}

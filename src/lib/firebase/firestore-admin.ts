@@ -2,6 +2,7 @@ import "server-only";
 
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
+import { openToken, sealToken } from "@/lib/meta/token-vault";
 import type {
   CompanyPrivacySettings,
   SecuritySettings,
@@ -9,6 +10,7 @@ import type {
   MessageReply,
   MessageStatus,
   MessageType,
+  WhatsAppTenant,
 } from "@/lib/types";
 
 const CONVERSATIONS = "conversations";
@@ -356,6 +358,101 @@ export async function getCompanyPrivacySettings(): Promise<CompanyPrivacySetting
         : undefined,
     updatedAt: data.updatedAt ?? null,
   };
+}
+
+const WHATSAPP_TENANTS = "whatsappTenants";
+
+export interface SaveWhatsAppTenantInput {
+  tenant: WhatsAppTenant;
+  /** Token del cliente: viene cifrato, se la chiave è configurata. */
+  accessToken: string;
+  /** PIN della verifica in due passaggi, quando il numero è stato registrato. */
+  pin?: string;
+  actor: { uid: string; email?: string };
+}
+
+/**
+ * Salva (o aggiorna) un cliente onboardato via Embedded Signup.
+ *
+ * Il token e il PIN stanno in campi separati dal resto del documento e non
+ * escono mai dal server: `listWhatsAppTenants` non li legge, e le regole
+ * Firestore negano ogni accesso alla collection dal client.
+ */
+export async function saveWhatsAppTenant(
+  input: SaveWhatsAppTenantInput,
+): Promise<void> {
+  const { tenant, accessToken, pin, actor } = input;
+  const sealed = sealToken(accessToken);
+  const ref = adminDb.collection(WHATSAPP_TENANTS).doc(tenant.wabaId);
+  const existing = await ref.get();
+
+  const batch = adminDb.batch();
+
+  batch.set(
+    ref,
+    {
+      ...tenant,
+      tokenEncrypted: sealed.encrypted,
+      accessToken: sealed.value,
+      ...(pin ? { registrationPin: pin } : {}),
+      connectedByUid: actor.uid,
+      ...(actor.email ? { connectedByEmail: actor.email } : {}),
+      ...(existing.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+
+  const security = await getSecuritySettings().catch(() => defaultSecuritySettings);
+  if (security.adminAuditEnabled) {
+    batch.create(adminDb.collection("adminAuditLogs").doc(), {
+      action: existing.exists
+        ? "Cliente WhatsApp ricollegato via Embedded Signup"
+        : "Cliente WhatsApp collegato via Embedded Signup",
+      actorUid: actor.uid,
+      actorEmail: actor.email ?? "",
+      changes: {
+        wabaId: tenant.wabaId,
+        phoneNumberId: tenant.defaultPhoneNumberId ?? "",
+        status: tenant.status,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  await batch.commit();
+}
+
+/** Elenco dei clienti collegati, senza token né PIN. */
+export async function listWhatsAppTenants(): Promise<WhatsAppTenant[]> {
+  const snapshot = await adminDb.collection(WHATSAPP_TENANTS).get();
+
+  return snapshot.docs
+    .map((doc) => {
+      const { accessToken: _token, registrationPin: _pin, ...data } = doc.data();
+      return {
+        ...(data as Omit<WhatsAppTenant, "wabaId">),
+        wabaId: doc.id,
+      } as WhatsAppTenant;
+    })
+    .sort((a, b) => (a.name || a.wabaId).localeCompare(b.name || b.wabaId));
+}
+
+/**
+ * Token del cliente da usare nelle chiamate Graph per conto suo.
+ * È il punto d'ingresso per rendere multi-tenant l'invio dei messaggi.
+ */
+export async function getWhatsAppTenantAccessToken(
+  wabaId: string,
+): Promise<string | null> {
+  const snap = await adminDb.collection(WHATSAPP_TENANTS).doc(wabaId).get();
+  const data = snap.data();
+  if (!data?.accessToken) return null;
+
+  return openToken({
+    value: data.accessToken as string,
+    encrypted: data.tokenEncrypted === true,
+  });
 }
 
 export async function saveCompanyPrivacySettings(
